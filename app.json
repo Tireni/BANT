@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "BANT",
+    "slug": "bant-demo",
+    "scheme": "bant",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/brand/bant-app-icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/brand/bant-mascot.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8FAFC"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": true },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/bant-app-icon.png",
+        "backgroundColor": "#F8FAFC"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/brand/bant-app-icon.png"
+    },
+    "plugins": ["expo-router", "expo-font"]
+  }
+}

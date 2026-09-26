@@ -1,0 +1,33 @@
+Bant
+
+8nKCc#yja8g+Y3d
+
+Freellmapi
+enochbenson3342@gmail.com
+9kT3QGfVeQCP9tC
+
+
+
+npx freellmapi setup-codex --url http://localhost:3001 --api-key freellmapi-7dc0f75dd78adb8a3b0eebd0196a99bdb29a4f5db7289044
+
+
+$results = Get-ChildItem "$env:USERPROFILE\.codex\sessions" -Recurse -Filter "rollout-*.jsonl" |
+ForEach-Object {
+    $file = $_
+
+    $sessionId = [System.IO.Path]::GetFileNameWithoutExtension($file.Name) -replace '^rollout-',''
+
+    $firstUser = Get-Content $file.FullName |
+        Select-String '"role":"user"' |
+        Select-Object -First 1
+
+    [PSCustomObject]@{
+        Date = $file.LastWriteTime
+        SessionID = $sessionId
+        FirstUserMessage = if ($firstUser) { $firstUser.Line } else { "" }
+    }
+}
+
+$results |
+Sort-Object Date -Descending |
+Export-Csv "$env:USERPROFILE\Desktop\codex-sessions.csv" -NoTypeInformation
