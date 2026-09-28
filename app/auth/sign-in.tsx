@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { useState } from "react";
@@ -7,6 +8,7 @@ import { BantButton } from "@/components/common/BantButton";
 import { BantInput } from "@/components/common/BantInput";
 import { useTheme } from "@/hooks/useTheme";
 import { onboardingRoute } from "@/lib/onboarding";
+import { PENDING_INVITE_TOKEN_KEY } from "@/lib/roomInvites";
 import { useBantStore } from "@/store/useBantStore";
 
 export default function SignIn() {
@@ -34,7 +36,15 @@ export default function SignIn() {
     const ok = mode === "signup"
       ? await signUp({ email: email.trim(), password, displayName: displayName.trim(), username: username.trim() })
       : await signIn({ email: email.trim(), password });
-    if (ok) router.replace(onboardingRoute(useBantStore.getState().profile ?? profile) as any);
+    if (ok) {
+      const pendingInvite = await AsyncStorage.getItem(PENDING_INVITE_TOKEN_KEY);
+      const nextProfile = useBantStore.getState().profile ?? profile;
+      if (pendingInvite && nextProfile?.onboarding_completed) {
+        router.replace(`/invite/${pendingInvite}`);
+        return;
+      }
+      router.replace(onboardingRoute(nextProfile) as any);
+    }
   };
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]}>

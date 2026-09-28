@@ -15,10 +15,10 @@ import { useBantStore } from "@/store/useBantStore";
 export default function Profile() {
   const theme = useTheme();
   const user = useBantStore((state) => state.currentUser);
-  const followingIds = useBantStore((state) => state.followingIds);
+  const friendIds = useBantStore((state) => state.friendIds);
   const notifications = useBantStore((state) => state.notifications);
   const rooms = useBantStore((state) => state.rooms);
-  const resetDemo = useBantStore((state) => state.resetDemo);
+  const resetClientState = useBantStore((state) => state.resetClientState);
   const signOut = useBantStore((state) => state.signOut);
   const updateProfile = useBantStore((state) => state.updateProfile);
   const loadPeople = useBantStore((state) => state.loadPeople);
@@ -88,7 +88,7 @@ export default function Profile() {
           <BantButton title="Edit profile" variant="ghost" onPress={() => setEditOpen(true)} style={{ marginTop: 8 }} />
         </View>
         <View style={styles.stats}>
-          <Stat label="Following" value={String(followingIds.length)} />
+          <Stat label="Friends" value={String(friendIds.length)} />
           <Stat label="Active rooms" value={String(activeRoomCount)} />
           <Stat label="Live rooms" value={String(rooms.filter((room) => room.isLive).length)} />
         </View>
@@ -97,10 +97,10 @@ export default function Profile() {
         <SettingsRow icon={<Tags size={20} color={theme.colors.blue} />} title="Interests" onPress={() => router.push("/onboarding/interests")} />
         <SettingsRow icon={<Bell size={20} color={theme.colors.blue} />} title={`Notifications${unread ? ` (${unread})` : ""}`} onPress={() => router.push("/(tabs)/friends")} />
         <SettingsRow icon={<MessageSquare size={20} color={theme.colors.blue} />} title="Send feedback" onPress={() => setFeedbackOpen(true)} />
-        <SettingsRow icon={<Shield size={20} color={theme.colors.blue} />} title="Safety" onPress={() => setToast("Safety tools are ready for demo")} />
+        <SettingsRow icon={<Shield size={20} color={theme.colors.blue} />} title="Safety" onPress={() => setToast("Safety tools need backend support before launch")} />
         <SettingsRow icon={<Info size={20} color={theme.colors.blue} />} title="About BANT" onPress={() => setToast("A safe place to just talk")} />
         <BantButton title="Log out" variant="ghost" onPress={async () => { await signOut(); router.replace("/auth/welcome"); }} />
-        <BantButton title="Reset demo" variant="danger" onPress={async () => { await resetDemo(); router.replace("/auth/welcome"); }} />
+        <BantButton title="Reset client state" variant="danger" onPress={async () => { await resetClientState(); router.replace("/auth/welcome"); }} />
       </ScrollView>
       <BottomSheet visible={editOpen} onClose={() => setEditOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Edit profile</Text>

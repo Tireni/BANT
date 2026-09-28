@@ -11,12 +11,10 @@ import { useBantStore } from "@/store/useBantStore";
 export default function Friends() {
   const theme = useTheme();
   const people = useBantStore((state) => state.people);
-  const followingIds = useBantStore((state) => state.followingIds);
+  const friendIds = useBantStore((state) => state.friendIds);
   const notifications = useBantStore((state) => state.notifications);
   const loading = useBantStore((state) => state.peopleLoading);
   const loadPeople = useBantStore((state) => state.loadPeople);
-  const followUser = useBantStore((state) => state.followUser);
-  const unfollowUser = useBantStore((state) => state.unfollowUser);
   const sendFriendRequest = useBantStore((state) => state.sendFriendRequest);
   const acceptFriendRequest = useBantStore((state) => state.acceptFriendRequest);
   const declineFriendRequest = useBantStore((state) => state.declineFriendRequest);
@@ -24,7 +22,7 @@ export default function Friends() {
   const friendshipState = useBantStore((state) => state.friendshipState);
   const loadNotifications = useBantStore((state) => state.loadNotifications);
   const markNotificationsRead = useBantStore((state) => state.markNotificationsRead);
-  const [tab, setTab] = useState<"Discover" | "Following" | "Notifications">("Discover");
+  const [tab, setTab] = useState<"Discover" | "Friends" | "Notifications">("Discover");
   const [query, setQuery] = useState("");
   useEffect(() => {
     void loadPeople();
@@ -34,16 +32,16 @@ export default function Friends() {
     if (tab === "Notifications") void markNotificationsRead();
   }, [markNotificationsRead, tab]);
   const users = useMemo(() => {
-    const source = tab === "Following" ? people.filter((user) => followingIds.includes(user.id)) : people;
+    const source = tab === "Friends" ? people.filter((user) => friendIds.includes(user.id)) : people;
     return source.filter((user) => `${user.name} ${user.username} ${user.university}`.toLowerCase().includes(query.toLowerCase()));
-  }, [followingIds, people, query, tab]);
+  }, [friendIds, people, query, tab]);
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.colors.text }]}>People</Text>
         {tab !== "Notifications" ? <BantInput placeholder="Search people" value={query} onChangeText={setQuery} /> : null}
         <View style={[styles.tabs, { backgroundColor: theme.colors.soft }]}>
-          {(["Discover", "Following", "Notifications"] as const).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && { backgroundColor: theme.colors.blue }]}><Text style={[styles.tabText, { color: tab === item ? "#fff" : theme.colors.secondary }]}>{item}</Text></Pressable>)}
+          {(["Discover", "Friends", "Notifications"] as const).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && { backgroundColor: theme.colors.blue }]}><Text style={[styles.tabText, { color: tab === item ? "#fff" : theme.colors.secondary }]}>{item}</Text></Pressable>)}
         </View>
       </View>
       <ScrollView contentContainerStyle={styles.list}>
@@ -51,10 +49,10 @@ export default function Friends() {
           notifications.length ? notifications.map((item) => {
             const action = item.type === "friend_request" ? (
               <View style={styles.requestActions}>
-                <Pressable onPress={() => item.actorId && void acceptFriendRequest(item.actorId)} style={[styles.inlineAction, { backgroundColor: theme.colors.blue }]}>
+                <Pressable onPress={() => item.targetId && void acceptFriendRequest(item.targetId)} style={[styles.inlineAction, { backgroundColor: theme.colors.blue }]}>
                   <Text style={[styles.inlineActionText, { color: "#fff" }]}>Accept</Text>
                 </Pressable>
-                <Pressable onPress={() => item.actorId && void declineFriendRequest(item.actorId)} style={[styles.inlineAction, { backgroundColor: theme.colors.soft }]}>
+                <Pressable onPress={() => item.targetId && void declineFriendRequest(item.targetId)} style={[styles.inlineAction, { backgroundColor: theme.colors.soft }]}>
                   <Text style={[styles.inlineActionText, { color: theme.colors.text }]}>Decline</Text>
                 </Pressable>
               </View>
@@ -66,24 +64,22 @@ export default function Friends() {
                 {action}
               </View>
             );
-          }) : <EmptyState title="No notifications yet." body="Follows and room activity will show here." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />
+          }) : <EmptyState title="No notifications yet." body="Friend requests and room activity will show here." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />
         ) : loading ? (
           <View style={styles.loading}><ActivityIndicator color={theme.colors.blue} /><Text style={[styles.loadingText, { color: theme.colors.secondary }]}>Loading people...</Text></View>
         ) : users.length ? (
           users.map((user) => {
             const state = friendshipState(user.id);
-            const following = followingIds.includes(user.id);
-            const action = state === "friends" ? "Friends" : state === "pending_received" ? "Accept" : state === "pending_sent" ? "Requested" : following ? "Following" : "Add friend";
+            const action = state === "friends" ? "Friends" : state === "pending_received" ? "Accept" : state === "pending_sent" ? "Request sent" : "Add friend";
             const onPress = () => {
               if (state === "friends") return;
               if (state === "pending_received") void acceptFriendRequest(user.id);
               else if (state === "pending_sent") void cancelFriendRequest(user.id);
-              else if (following) void unfollowUser(user.id);
               else void sendFriendRequest(user.id);
             };
             return <UserRow key={user.id} user={user} action={action} onPress={onPress} />;
           })
-        ) : <EmptyState title="BANT is better with people." body="Join a room and follow people you vibe with." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
+        ) : <EmptyState title="BANT is better with people." body="Add friends from your campus and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
       </ScrollView>
     </SafeAreaView>
   );

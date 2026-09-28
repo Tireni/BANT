@@ -26,9 +26,11 @@ export default function RoomScreen() {
   const authenticated = useBantStore((state) => state.authenticated);
   const profile = useBantStore((state) => state.profile);
   const rooms = useBantStore((state) => state.rooms);
-  const followingIds = useBantStore((state) => state.followingIds);
-  const followUser = useBantStore((state) => state.followUser);
-  const unfollowUser = useBantStore((state) => state.unfollowUser);
+  const friendshipState = useBantStore((state) => state.friendshipState);
+  const sendFriendRequest = useBantStore((state) => state.sendFriendRequest);
+  const acceptFriendRequest = useBantStore((state) => state.acceptFriendRequest);
+  const cancelFriendRequest = useBantStore((state) => state.cancelFriendRequest);
+  const createRoomInvite = useBantStore((state) => state.createRoomInvite);
   const setToast = useBantStore((state) => state.setToast);
   const joinRoom = useBantStore((state) => state.joinRoom);
   const leaveRoom = useBantStore((state) => state.leaveRoom);
@@ -38,6 +40,8 @@ export default function RoomScreen() {
   const [handRaised, setHandRaised] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteLink, setInviteLink] = useState("");
+  const [creatingInvite, setCreatingInvite] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<"spam" | "harassment" | "unsafe" | "impersonation" | "other">("unsafe");
@@ -79,9 +83,18 @@ export default function RoomScreen() {
     };
   }, [loadRooms, room?.id]);
   const redirectHref = !authenticated ? "/auth/welcome" : !profile?.onboarding_completed ? (onboardingRoute(profile) as any) : null;
-  const inviteLink = room ? `https://bant.app/r/${room.slug}` : "";
-  const copy = async () => {
+  const generateInvite = async () => {
     if (!room) return;
+    setCreatingInvite(true);
+    const invite = await createRoomInvite(room.id);
+    setCreatingInvite(false);
+    if (invite) setInviteLink(inviteUrlForToken(invite.inviteToken));
+  };
+  const copy = async () => {
+    if (!inviteLink) {
+      await generateInvite();
+      return;
+    }
     await Clipboard.setStringAsync(inviteLink);
     setToast("Invite link copied");
   };
@@ -126,7 +139,20 @@ export default function RoomScreen() {
   };
   const voiceLabel = voice.status === "requesting" ? "Joining" : voice.status === "connected" ? voice.muted ? "Muted" : "Mic" : "Mic";
   const allParticipants = useMemo(() => [...(speakers ?? []), ...(listeners ?? [])], [listeners, speakers]);
-  const isOwner = Boolean(profile && room && (room.ownerId === profile.id || room.currentUserRole === "host" || room.speakerIds.includes(profile.id)));
+  const isOwner = Boolean(profile && room && (room.ownerId === profile.id || room.currentUserRole === "owner" || room.currentUserRole === "host"));
+
+  const friendActionFor = (userId: string) => {
+    const state = friendshipState(userId);
+    return {
+      label: state === "friends" ? "Friends" : state === "pending_received" ? "Accept" : state === "pending_sent" ? "Request sent" : "Add friend",
+      press: () => {
+        if (state === "friends") return;
+        if (state === "pending_received") void acceptFriendRequest(userId);
+        else if (state === "pending_sent") void cancelFriendRequest(userId);
+        else void sendFriendRequest(userId);
+      }
+    };
+  };
 
   const sendWarning = async (targetUserId?: string) => {
     if (!hasSupabaseConfig || !profile?.id || !room?.id) return;
@@ -174,7 +200,7 @@ export default function RoomScreen() {
 
   const endRoom = async () => {
     if (!hasSupabaseConfig || !profile?.id || !room?.id) return;
-    const { error } = await supabase.from("rooms").update({ status: "ended" }).eq("id", room.id);
+    const { error } = await supabase.from("rooms").update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", room.id);
     if (error) {
       setToast(error.message);
       return;
@@ -317,23 +343,23 @@ export default function RoomScreen() {
         <ScrollView style={{ maxHeight: 460 }}>
           <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>SPEAKERS</Text>
           {speakers.map((user) => {
-            const following = followingIds.includes(user.id);
-            return <UserRow key={user.id} user={user} action={following ? "Following" : "Follow"} onPress={() => following ? unfollowUser(user.id) : followUser(user.id)} />;
+            const action = friendActionFor(user.id);
+            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} />;
           })}
           <Text style={[styles.sheetLabel, { color: theme.colors.muted, marginTop: 16 }]}>LISTENERS</Text>
           {listeners.map((user) => {
-            const following = followingIds.includes(user.id);
-            return <UserRow key={user.id} user={user} action={following ? "Following" : "Follow"} onPress={() => following ? unfollowUser(user.id) : followUser(user.id)} />;
+            const action = friendActionFor(user.id);
+            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} />;
           })}
         </ScrollView>
       </BottomSheet>
       <BottomSheet visible={inviteOpen} onClose={() => setInviteOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Invite people</Text>
         <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>ROOM LINK</Text>
-        <Text style={[styles.link, { color: theme.colors.secondary, backgroundColor: theme.colors.soft }]}>{inviteLink}</Text>
+        <Text style={[styles.link, { color: theme.colors.secondary, backgroundColor: theme.colors.soft }]}>{inviteLink || "Generate a secure invite link for this room."}</Text>
         <View style={{ gap: 10, marginTop: 10 }}>
-          <BantButton title="Copy link" onPress={copy} />
-          <BantButton title="Share" variant="ghost" onPress={() => Sharing.shareAsync(inviteLink).catch(() => copy())} />
+          <BantButton title={inviteLink ? "Copy link" : "Generate invite link"} onPress={copy} loading={creatingInvite} />
+          <BantButton title="Share" variant="ghost" disabled={!inviteLink} onPress={() => Sharing.shareAsync(inviteLink).catch(() => copy())} />
         </View>
       </BottomSheet>
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
@@ -372,6 +398,11 @@ export default function RoomScreen() {
       {redirectHref ? null : roomContent}
     </>
   );
+}
+
+function inviteUrlForToken(token: string) {
+  if (typeof window !== "undefined" && window.location?.origin) return `${window.location.origin}/invite/${token}`;
+  return `https://bant.app/invite/${token}`;
 }
 
 const styles = StyleSheet.create({

@@ -133,7 +133,7 @@ export default function ProfileStep() {
                 {avatarUrl ? (
                   <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
                 ) : currentUser ? (
-                  <BantAvatar user={user_fallback(displayName, avatarUrl) as any} size={84} />
+                  <BantAvatar user={previewUser(displayName, avatarUrl) as any} size={84} />
                 ) : (
                   <View style={[styles.emptyAvatar, { backgroundColor: theme.colors.soft }]}><Camera color={theme.colors.blue} size={28} /></View>
                 )}
@@ -154,7 +154,7 @@ export default function ProfileStep() {
   );
 }
 
-function user_fallback(name: string, avatar_url: string | null) {
+function previewUser(name: string, avatar_url: string | null) {
   return {
     id: "temp",
     name: name || "BANT",

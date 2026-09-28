@@ -18,5 +18,5 @@ export type Room = {
   ownerId?: string;
   speakers?: import("./user").User[];
   listeners?: import("./user").User[];
-  currentUserRole?: "host" | "speaker" | "listener";
+  currentUserRole?: "owner" | "host" | "speaker" | "listener";
 };
