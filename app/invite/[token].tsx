@@ -24,6 +24,7 @@ export default function InviteRoute() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const inviteToken = useMemo(() => Array.isArray(token) ? token[0] : token, [token]);
   const theme = useTheme();
+  const hydrated = useBantStore((state) => state.hydrated);
   const authenticated = useBantStore((state) => state.authenticated);
   const profile = useBantStore((state) => state.profile);
   const joinRoomWithInvite = useBantStore((state) => state.joinRoomWithInvite);
@@ -64,6 +65,14 @@ export default function InviteRoute() {
       router.replace(`/room/${roomId}`);
     });
   }, [authenticated, inviteToken, joinAttempted, joinRoomWithInvite, joining, preview, profile?.onboarding_completed]);
+
+  if (!hydrated) {
+    return (
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator color={theme.colors.blue} />
+      </SafeAreaView>
+    );
+  }
 
   if (authenticated && !profile?.onboarding_completed) return <Redirect href={onboardingRoute(profile) as any} />;
 
