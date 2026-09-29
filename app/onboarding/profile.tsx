@@ -57,7 +57,7 @@ export default function ProfileStep() {
       input.onchange = async () => {
         const file = input.files?.[0];
         if (!file) return;
-        await uploadAvatar(file);
+        await uploadAvatar(file, file.name);
       };
       input.click();
       return;
@@ -100,11 +100,27 @@ export default function ProfileStep() {
       return;
     }
 
-    const fileName = fileNameOverride ?? `avatars/${Date.now()}.jpg`;
+    const userId = profile?.id ?? currentUser?.id;
+    if (!userId) {
+      setToast("Sign in before uploading a profile photo");
+      return;
+    }
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    const contentType = file.type || "image/jpeg";
+    if (!allowedTypes.has(contentType)) {
+      setToast("Use a JPG, PNG, or WEBP image");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setToast("Profile photos must be 5 MB or smaller");
+      return;
+    }
+    const originalName = (fileNameOverride ?? "avatar.jpg").replace(/[^a-zA-Z0-9._-]/g, "-");
+    const fileName = `${userId}/${Date.now()}-${originalName}`;
     setUploading(true);
     const { data, error } = await supabase.storage.from("avatars").upload(fileName, file, {
-      contentType: file.type || "image/jpeg",
-      upsert: true
+      contentType,
+      upsert: false
     });
     setUploading(false);
 
