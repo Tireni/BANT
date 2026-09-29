@@ -17,7 +17,7 @@ export default function Rooms() {
   const rooms = useBantStore((state) => state.rooms);
   const loadRooms = useBantStore((state) => state.loadRooms);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("For You");
+  const [category, setCategory] = useState("Feed");
   const [filter, setFilter] = useState("Live");
   useEffect(() => {
     void loadRooms();

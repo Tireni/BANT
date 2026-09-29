@@ -5,7 +5,7 @@ import { Session } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 import { create } from "zustand";
 import { googleOAuthRedirectUrl, normalizeUsername } from "@/lib/authHelpers";
-import { MAX_MESH_VOICE_PARTICIPANTS, clampRoomCapacity } from "@/lib/roomLogic";
+import { DEFAULT_ROOM_PARTICIPANTS, clampRoomCapacity } from "@/lib/roomLogic";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import { Profile } from "@/types/profile";
 import { Room, RoomCategory, RoomPrivacy } from "@/types/room";
@@ -93,6 +93,7 @@ type BantState = Persisted & {
   loadNotifications: () => Promise<void>;
   markNotificationsRead: () => Promise<void>;
   loadRooms: () => Promise<void>;
+  loadRoom: (roomId: string) => Promise<Room | null>;
   createRoom: (input: CreateRoomInput) => Promise<Room | null>;
   joinRoom: (roomId: string, role?: "speaker" | "listener") => Promise<boolean>;
   createRoomInvite: (roomId: string, inviteeId?: string | null) => Promise<RoomInvite | null>;
@@ -542,24 +543,40 @@ export const useBantStore = create<BantState>((set, get) => ({
       return;
     }
     set({ rooms: [], roomsLoading: true });
-    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
-    const { data, error } = await supabase
-      .from("rooms")
-      .select(fullSelect)
-      .eq("status", "live")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.rpc("get_live_room_feed", {
+      p_limit: 25,
+      p_offset: 0,
+      p_category: null,
+      p_search: null
+    });
     if (error) {
       set({ rooms: [], roomsLoading: false, toast: error.message });
       return;
     }
-    const liveRooms = (data ?? []).filter((row: any) => (row.status ?? "live") !== "ended");
-    set({ rooms: liveRooms.map((row) => shapeRoom(row, session.user.id)), roomsLoading: false });
+    set({ rooms: (data ?? []).map((row: any) => shapeRoomSummary(row)), roomsLoading: false });
+  },
+  loadRoom: async (roomId) => {
+    const session = get().session;
+    if (!hasSupabaseConfig || !session || !roomId) return null;
+    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
+    const { data, error } = await supabase
+      .from("rooms")
+      .select(fullSelect)
+      .eq("id", roomId)
+      .maybeSingle();
+    if (error || !data) {
+      set({ toast: error?.message ?? "Unable to load room" });
+      return null;
+    }
+    const room = shapeRoom(data, session.user.id);
+    set({ rooms: upsertRoom(get().rooms, room) });
+    return room;
   },
   createRoom: async (input) => {
     const state = get();
     if (hasSupabaseConfig && state.session) {
       const baseSlug = slugify(input.title);
-      const maxParticipants = clampRoomCapacity(Number(input.maxParticipants ?? 8));
+      const maxParticipants = clampRoomCapacity(Number(input.maxParticipants ?? DEFAULT_ROOM_PARTICIPANTS));
       const noiseControlEnabled = Boolean(input.noiseControl);
       const basePayload = {
         title: input.title.trim(),
@@ -586,8 +603,8 @@ export const useBantStore = create<BantState>((set, get) => ({
         set({ toast: error?.message ?? "Unable to create room" });
         return null;
       }
-      await get().loadRooms();
-      const room = get().rooms.find((item) => item.id === data.id) ?? shapeRoom(data, state.session.user.id);
+      const room = shapeRoom(data, state.session.user.id);
+      set({ rooms: upsertRoom(get().rooms, room) });
       set({ toast: "Room created" });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       return room;
@@ -614,7 +631,7 @@ export const useBantStore = create<BantState>((set, get) => ({
       set({ toast: error.message });
       return false;
     }
-    await get().loadRooms();
+    await get().loadRoom(roomId);
     return true;
   },
   createRoomInvite: async (roomId, inviteeId = null) => {
@@ -670,8 +687,8 @@ export const useBantStore = create<BantState>((set, get) => ({
       set({ toast: roomInviteMessage(error?.message) });
       return null;
     }
-    await get().loadRooms();
     const member = Array.isArray(data) ? data[0] : data;
+    await get().loadRoom(member?.room_id ?? "");
     set({ toast: "Joined room" });
     return member?.room_id ?? null;
   },
@@ -692,8 +709,8 @@ export const useBantStore = create<BantState>((set, get) => ({
       set({ toast: roomInviteMessage(error?.message) });
       return null;
     }
-    await get().loadRooms();
     const member = Array.isArray(data) ? data[0] : data;
+    await get().loadRoom(member?.room_id ?? "");
     set({ toast: "Joined room" });
     return member?.room_id ?? null;
   },
@@ -725,7 +742,6 @@ export const useBantStore = create<BantState>((set, get) => ({
     if ((remainingMembers ?? []).length === 0) {
       set({ rooms: get().rooms.filter((item) => item.id !== roomId) });
       set({ toast: "Room closed because it was empty" });
-      await get().loadRooms();
       return true;
     }
 
@@ -740,7 +756,11 @@ export const useBantStore = create<BantState>((set, get) => ({
       }
     }
 
-    await get().loadRooms();
+    if (room?.ownerId === session.user.id) {
+      set({ rooms: get().rooms.filter((item) => item.id !== roomId) });
+    } else {
+      await get().loadRoom(roomId);
+    }
     set({ toast: room?.ownerId === session.user.id ? "Room ended" : "Left room" });
     return true;
   },
@@ -812,7 +832,7 @@ async function loadProfileIntoState(session: Session, set: (partial: Partial<Ban
     avatarColor: avatarColorFor(profile.username),
     avatar_url: profile.avatar_url,
     bio: profile.bio ?? "",
-    online: true
+    online: false
   } : null;
   const shapedProfile: Profile | null = profile ? {
     id: profile.id,
@@ -861,7 +881,7 @@ function shapeRoom(row: any, currentUserId: string): Room {
     speakerIds: speakers.map((user) => user.id),
     listenerIds: listeners.map((user) => user.id),
     participantCount: activeMembers.length,
-    maxParticipants: Number(row.max_participants ?? Math.max(activeMembers.length, MAX_MESH_VOICE_PARTICIPANTS)),
+    maxParticipants: Number(row.max_participants ?? Math.max(activeMembers.length, DEFAULT_ROOM_PARTICIPANTS)),
     noiseControlEnabled: Boolean(row.noise_control_enabled),
     isLive: row.status === "live",
     ownerId: row.owner_id ?? row.host_id,
@@ -882,7 +902,7 @@ function profileToUser(profile: any): User | null {
     avatarColor: avatarColorFor(profile.username ?? profile.id),
     avatar_url: profile.avatar_url ?? null,
     bio: profile.bio ?? "",
-    online: true
+    online: false
   };
 }
 
@@ -894,8 +914,34 @@ function profileRowToUser(row: any): User {
     avatarColor: avatarColorFor(row.username ?? row.id),
     avatar_url: row.avatar_url ?? null,
     bio: row.bio ?? "",
-    online: true
+    online: false
   };
+}
+
+function shapeRoomSummary(row: any): Room {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    description: row.description || "A fresh BANT room.",
+    category: row.category as RoomCategory,
+    privacy: row.privacy as RoomPrivacy,
+    speakerIds: [],
+    listenerIds: [],
+    participantCount: Number(row.participant_count ?? 0),
+    maxParticipants: Number(row.max_participants ?? DEFAULT_ROOM_PARTICIPANTS),
+    noiseControlEnabled: Boolean(row.noise_control_enabled),
+    isLive: row.status === "live",
+    ownerId: row.owner_id ?? row.host_id,
+    speakers: [],
+    listeners: []
+  };
+}
+
+function upsertRoom(rooms: Room[], room: Room) {
+  const existing = rooms.find((item) => item.id === room.id);
+  if (!existing) return [room, ...rooms];
+  return rooms.map((item) => item.id === room.id ? { ...item, ...room } : item);
 }
 
 function friendRequestRow(row: any): FriendRequestRecord {

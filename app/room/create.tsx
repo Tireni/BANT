@@ -9,7 +9,7 @@ import { CategoryChip } from "@/components/common/CategoryChip";
 import { PrivacySelector } from "@/components/room/PrivacySelector";
 import { useTheme } from "@/hooks/useTheme";
 import { onboardingRoute } from "@/lib/onboarding";
-import { MAX_MESH_VOICE_PARTICIPANTS, MIN_ROOM_PARTICIPANTS, isValidRoomCapacity } from "@/lib/roomLogic";
+import { DEFAULT_ROOM_PARTICIPANTS, MAX_ROOM_PARTICIPANTS, MIN_ROOM_PARTICIPANTS, ROOM_CAPACITY_OPTIONS, isValidRoomCapacity } from "@/lib/roomLogic";
 import { useBantStore } from "@/store/useBantStore";
 import { RoomCategory, RoomPrivacy } from "@/types/room";
 
@@ -25,7 +25,7 @@ export default function CreateRoom() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<RoomCategory>("General");
   const [privacy, setPrivacy] = useState<RoomPrivacy>("public");
-  const [maxParticipants, setMaxParticipants] = useState<number>(MAX_MESH_VOICE_PARTICIPANTS);
+  const [maxParticipants, setMaxParticipants] = useState<number>(DEFAULT_ROOM_PARTICIPANTS);
   const [noiseControlEnabled, setNoiseControlEnabled] = useState<boolean>(false);
   const [joinRule, setJoinRule] = useState<"Everyone" | "Friends only">("Everyone");
   const [creating, setCreating] = useState(false);
@@ -37,7 +37,7 @@ export default function CreateRoom() {
       return;
     }
     if (!isValidRoomCapacity(maxParticipants)) {
-      setToast(`Choose a room size between ${MIN_ROOM_PARTICIPANTS} and ${MAX_MESH_VOICE_PARTICIPANTS} participants`);
+      setToast(`Choose a room size between ${MIN_ROOM_PARTICIPANTS} and ${MAX_ROOM_PARTICIPANTS} participants`);
       return;
     }
     setCreating(true);
@@ -75,7 +75,7 @@ export default function CreateRoom() {
             <View style={[styles.selectWrap, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <Text style={[styles.selectValue, { color: theme.colors.text }]}>{maxParticipants}</Text>
               <View style={styles.selectOptions}>
-                {[2, 3, 4, 5, 6, 8].map((value) => (
+                {ROOM_CAPACITY_OPTIONS.map((value) => (
                   <Pressable key={value} onPress={() => setMaxParticipants(value)} style={[styles.option, { backgroundColor: maxParticipants === value ? theme.colors.blue : theme.colors.background, borderColor: maxParticipants === value ? theme.colors.blue : theme.colors.border }]}>
                     <Text style={[styles.optionText, { color: maxParticipants === value ? "#fff" : theme.colors.text }]}>{value}</Text>
                   </Pressable>

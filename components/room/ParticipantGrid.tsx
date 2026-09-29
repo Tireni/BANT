@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Mic, MicOff } from "lucide-react-native";
 import { BantAvatar } from "@/components/common/BantAvatar";
 import { useTheme } from "@/hooks/useTheme";
@@ -27,25 +27,49 @@ export function ParticipantGrid({
 }) {
   const theme = useTheme();
   const isOwner = Boolean(roomOwnerId && currentUserId && roomOwnerId === currentUserId);
+  const { width } = useWindowDimensions();
+  const columns = width >= 900 ? 5 : width >= 700 ? 4 : 3;
 
   return (
-    <View>
+    <View style={styles.wrap}>
       {isOwner && moderationMode && noiseControlEnabled && selectedUserIds.length > 0 ? (
         <Pressable onPress={onWarnSelected} style={[styles.warnButton, { backgroundColor: theme.colors.warning }]}>
-          <Text style={[styles.warnButtonText, { color: "#fff" }]}>Warn Selected 🤫</Text>
+          <Text style={[styles.warnButtonText, { color: "#fff" }]}>Warn Selected</Text>
         </Pressable>
       ) : null}
-      <View style={styles.grid}>
-        {users.map((user) => {
+      <FlatList
+        data={users}
+        key={columns}
+        keyExtractor={(user) => user.id}
+        numColumns={columns}
+        scrollEnabled={false}
+        initialNumToRender={24}
+        maxToRenderPerBatch={24}
+        windowSize={5}
+        columnWrapperStyle={styles.row}
+        renderItem={({ item: user }) => {
           const active = selectedUserIds.includes(user.id);
-          const selectable = isOwner && moderationMode;
+          const selectable = isOwner && moderationMode && user.id !== roomOwnerId;
           const muted = mutedUserIds.includes(user.id);
           const isHost = roomOwnerId === user.id;
           return (
-            <Pressable key={user.id} onPress={() => onToggleUser?.(user.id)} style={[styles.item, selectable && active && { borderColor: theme.colors.warning, borderWidth: 2, backgroundColor: theme.colors.soft }, selectable && { borderColor: theme.colors.border }, !selectable && { borderColor: "transparent" }]}>
+            <Pressable
+              onPress={() => selectable ? onToggleUser?.(user.id) : undefined}
+              style={[
+                styles.item,
+                { flexBasis: `${100 / columns}%` },
+                selectable && active && { borderColor: theme.colors.warning, borderWidth: 2, backgroundColor: theme.colors.soft },
+                selectable && { borderColor: theme.colors.border },
+                !selectable && { borderColor: "transparent" }
+              ]}
+            >
               <View style={styles.avatarWrap}>
                 <BantAvatar user={user} size={62} />
-                {selectable ? <View style={[styles.check, { backgroundColor: active ? theme.colors.warning : theme.colors.soft, borderColor: active ? theme.colors.warning : theme.colors.border }]}><Text style={styles.checkText}>{active ? "✓" : ""}</Text></View> : null}
+                {selectable ? (
+                  <View style={[styles.check, { backgroundColor: active ? theme.colors.warning : theme.colors.soft, borderColor: active ? theme.colors.warning : theme.colors.border }]}>
+                    <Text style={styles.checkText}>{active ? "OK" : ""}</Text>
+                  </View>
+                ) : null}
               </View>
               <View style={styles.nameRow}>
                 <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>{user.name.split(" ")[0]}</Text>
@@ -57,15 +81,16 @@ export function ParticipantGrid({
               </View>
             </Pressable>
           );
-        })}
-      </View>
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "flex-start" },
-  item: { width: "31%", minWidth: 96, maxWidth: 140, alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, backgroundColor: "rgba(0,0,0,0.04)" },
+  wrap: { width: "100%" },
+  row: { alignItems: "stretch" },
+  item: { alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, backgroundColor: "rgba(0,0,0,0.04)" },
   avatarWrap: { position: "relative" },
   check: { position: "absolute", right: -4, top: -4, width: 18, height: 18, borderRadius: 9, justifyContent: "center", alignItems: "center", borderWidth: 1 },
   checkText: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 10, color: "#fff" },

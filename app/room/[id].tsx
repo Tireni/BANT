@@ -9,16 +9,14 @@ import { BottomSheet } from "@/components/common/BottomSheet";
 import { BantButton } from "@/components/common/BantButton";
 import { ParticipantGrid } from "@/components/room/ParticipantGrid";
 import { RoomControlButton } from "@/components/room/RoomControlButton";
-import { SpeakerAvatar } from "@/components/room/SpeakerAvatar";
 import { NoiseWarningOverlay } from "@/components/room/NoiseWarningOverlay";
 import { UserRow } from "@/components/friends/UserRow";
 import { useRoomChat } from "@/hooks/useRoomChat";
 import { useRoomSimulation } from "@/hooks/useRoomSimulation";
-import { useRoomVoice } from "@/hooks/useRoomVoice";
+import { useLiveRoomAudio } from "@/hooks/useLiveRoomAudio";
 import { useTheme } from "@/hooks/useTheme";
 import { onboardingRoute } from "@/lib/onboarding";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
-import { voicePeerIdsFor } from "@/lib/voiceConfig";
 import { useBantStore } from "@/store/useBantStore";
 
 export default function RoomScreen() {
@@ -35,7 +33,7 @@ export default function RoomScreen() {
   const setToast = useBantStore((state) => state.setToast);
   const joinRoom = useBantStore((state) => state.joinRoom);
   const leaveRoom = useBantStore((state) => state.leaveRoom);
-  const loadRooms = useBantStore((state) => state.loadRooms);
+  const loadRoom = useBantStore((state) => state.loadRoom);
   const room = rooms.find((item) => item.id === id);
   const { activeSpeakerId, participantCount, activity } = useRoomSimulation(room);
   const [handRaised, setHandRaised] = useState(false);
@@ -54,8 +52,7 @@ export default function RoomScreen() {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const speakers = useMemo(() => room?.speakers ?? [], [room]);
   const listeners = useMemo(() => room?.listeners ?? [], [room]);
-  const voicePeerIds = useMemo(() => voicePeerIdsFor(profile?.id, [...speakers, ...listeners].map((user) => user.id)), [listeners, profile?.id, speakers]);
-  const voice = useRoomVoice({ roomId: room?.id, currentUserId: profile?.id, peerIds: voicePeerIds, adminMuted: Boolean(room?.currentUserAdminMuted) });
+  const voice = useLiveRoomAudio({ roomId: room?.id, adminMuted: Boolean(room?.currentUserAdminMuted) });
   const chat = useRoomChat(room?.id, profile?.id);
   useEffect(() => {
     if (!room || !profile?.id) return;
@@ -67,22 +64,23 @@ export default function RoomScreen() {
     }
     void joinRoom(room.id, room.ownerId === profile.id ? "speaker" : "listener").then((joined) => {
       if (joined && voice.supported) {
+        void loadRoom(room.id);
         void voice.start();
       }
     });
-  }, [joinRoom, profile?.id, room, voice.start, voice.status, voice.supported]);
+  }, [joinRoom, loadRoom, profile?.id, room, voice.start, voice.status, voice.supported]);
   useEffect(() => {
     if (!hasSupabaseConfig || !room?.id) return;
     const channel = supabase
       .channel(`room-members:${room.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "room_members", filter: `room_id=eq.${room.id}` }, () => {
-        void loadRooms();
+        void loadRoom(room.id);
       })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadRooms, room?.id]);
+  }, [loadRoom, room?.id]);
   useEffect(() => {
     if (!hasSupabaseConfig || !room?.id) return;
     const channel = supabase
@@ -95,13 +93,13 @@ export default function RoomScreen() {
           router.replace("/(tabs)/rooms");
           return;
         }
-        void loadRooms();
+        void loadRoom(room.id);
       })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadRooms, room?.id, setToast, voice.stop]);
+  }, [loadRoom, room?.id, setToast, voice.stop]);
   const redirectHref = !authenticated ? "/auth/welcome" : !profile?.onboarding_completed ? (onboardingRoute(profile) as any) : null;
   const generateInvite = async () => {
     if (!room) return;
@@ -266,7 +264,7 @@ export default function RoomScreen() {
           <Text style={[styles.description, { color: theme.colors.secondary }]}>{room.description || "Live room discussion."}</Text>
           {activity ? <Text style={[styles.activity, { color: theme.colors.mint }]}>{activity}</Text> : null}
           <Text style={[styles.activity, { color: voice.status === "connected" ? theme.colors.mint : theme.colors.secondary }]}>
-            {voice.status === "connected" ? `Voice live${voice.remoteCount ? ` · ${voice.remoteCount} connected` : ""}` : voice.error ?? "Live audio supports up to 8 people in this launch build."}
+            {voice.status === "connected" ? `LiveKit audio live${voice.remoteCount ? ` · ${voice.remoteCount} media connected` : ""}` : voice.error ?? "LiveKit audio is ready after room access is confirmed."}
           </Text>
         </View>
 
@@ -339,6 +337,7 @@ export default function RoomScreen() {
       <View style={[styles.controls, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         {isOwner ? (
           <>
+            <RoomControlButton label={voice.adminMuted ? "Host Muted" : voiceLabel} active={voice.status === "connected"} onPress={toggleVoice} icon={voice.muted ? <MicOff size={20} color={voice.adminMuted ? theme.colors.danger : theme.colors.blue} /> : <Mic size={20} color={voice.status === "connected" ? theme.colors.blue : theme.colors.text} />} />
             <RoomControlButton label="Mute" active={false} onPress={() => { setModerationAction("mute"); setModerationMode(true); setSelectedUserIds([]); }} icon={<MicOff size={20} color={theme.colors.text} />} />
             <RoomControlButton label="Moderate" active={moderationMode} onPress={() => { setModerationAction("mute"); setModerationMode(true); setSelectedUserIds([]); }} icon={<Users size={20} color={theme.colors.text} />} />
             {room.noiseControlEnabled ? <RoomControlButton label="Noise 🤫" active={moderationAction === "warn"} onPress={() => { setModerationAction("warn"); setModerationMode(true); setSelectedUserIds([]); }} icon={<Volume2 size={20} color={theme.colors.warning} />} /> : null}
