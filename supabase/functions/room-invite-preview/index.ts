@@ -36,12 +36,21 @@ Deno.serve(async (req) => {
       ? (room?.description?.trim() || "Join this live conversation on BANT.")
       : "This BANT room invite is no longer available.";
 
+    const userAgent = req.headers.get("user-agent") ?? "";
+    if (next && !isSocialPreviewBot(userAgent)) {
+      return Response.redirect(next, 302);
+    }
+
     return htmlPage(title, description, next, 200);
   } catch (error) {
     console.error("room-invite-preview failed", error instanceof Error ? error.message : error);
     return htmlPage("BANT", "Join the conversation on BANT.", null, 500);
   }
 });
+
+function isSocialPreviewBot(userAgent: string) {
+  return /(whatsapp|facebookexternalhit|facebot|twitterbot|xbot|telegrambot|linkedinbot|slackbot|discordbot|skypeuripreview|googlebot|bingbot)/i.test(userAgent);
+}
 
 function safeNext(value: string | null) {
   if (!value) return null;
