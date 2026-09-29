@@ -582,7 +582,7 @@ export const useBantStore = create<BantState>((set, get) => ({
   loadRoom: async (roomId) => {
     const session = get().session;
     if (!hasSupabaseConfig || !session || !roomId) return null;
-    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
+    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles!room_members_user_id_fkey(id, display_name, username, bio, avatar_url))";
     const { data, error } = await supabase
       .from("rooms")
       .select(fullSelect)
@@ -617,7 +617,7 @@ export const useBantStore = create<BantState>((set, get) => ({
         max_participants: maxParticipants,
         noise_control_enabled: noiseControlEnabled
       };
-      const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
+      const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles!room_members_user_id_fkey(id, display_name, username, bio, avatar_url))";
       const { data, error } = await supabase
         .from("rooms")
         .insert(fullPayload)
