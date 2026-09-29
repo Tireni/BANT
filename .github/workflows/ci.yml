@@ -33,6 +33,7 @@ jobs:
         run: |
           deno check supabase/functions/livekit-token/index.ts
           deno check supabase/functions/create-room-invite/index.ts
+          deno check supabase/functions/room-invite-preview/index.ts
 
       - name: Test
         run: npm test
