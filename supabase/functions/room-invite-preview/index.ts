@@ -92,12 +92,15 @@ function htmlPage(title: string, description: string, next: string | null, statu
 </body>
 </html>`;
 
+  const headers = new Headers();
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Content-Disposition", "inline");
+  headers.set("Cache-Control", "public, max-age=60");
+  headers.set("X-Content-Type-Options", "nosniff");
+
   return new Response(html, {
     status,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "public, max-age=60"
-    }
+    headers
   });
 }
 
