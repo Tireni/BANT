@@ -19,7 +19,7 @@ A participant must first have valid active BANT room membership in Supabase. The
 
 ## Requirements
 
-- Node.js 20+ and npm
+- Node.js 22+ and npm
 - Supabase project
 - LiveKit project
 - Modern browser with microphone support
