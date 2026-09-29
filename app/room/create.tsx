@@ -27,7 +27,6 @@ export default function CreateRoom() {
   const [privacy, setPrivacy] = useState<RoomPrivacy>("public");
   const [maxParticipants, setMaxParticipants] = useState<number>(DEFAULT_ROOM_PARTICIPANTS);
   const [noiseControlEnabled, setNoiseControlEnabled] = useState<boolean>(false);
-  const [joinRule, setJoinRule] = useState<"Everyone" | "Friends only">("Everyone");
   const [creating, setCreating] = useState(false);
   if (!authenticated) return <Redirect href="/auth/welcome" />;
   if (!profile?.onboarding_completed) return <Redirect href={onboardingRoute(profile) as any} />;
@@ -41,7 +40,7 @@ export default function CreateRoom() {
       return;
     }
     setCreating(true);
-    const room = createRoom({ title: title.trim(), description: description.trim(), category, privacy, joinRule, maxParticipants, noiseControl: noiseControlEnabled });
+    const room = createRoom({ title: title.trim(), description: description.trim(), category, privacy, maxParticipants, noiseControl: noiseControlEnabled });
     const created = await room;
     setCreating(false);
     if (created) router.replace(`/room/${created.id}`);
@@ -90,12 +89,6 @@ export default function CreateRoom() {
             </Pressable>
             <Text style={[styles.helpText, { color: theme.colors.secondary }]}>When enabled, the host can send quiet warnings to participants.</Text>
           </View>
-          {privacy === "public" ? (
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Who can join?</Text>
-              <View style={styles.joinRules}>{(["Everyone", "Friends only"] as const).map((item) => <Pressable key={item} onPress={() => setJoinRule(item)} style={[styles.rule, { backgroundColor: joinRule === item ? theme.colors.blue : theme.colors.surface, borderColor: joinRule === item ? theme.colors.blue : theme.colors.border }]}><Text style={[styles.ruleText, { color: joinRule === item ? "#fff" : theme.colors.secondary }]}>{item}</Text></Pressable>)}</View>
-            </View>
-          ) : null}
         </ScrollView>
         <View style={styles.footer}><BantButton title="Start room" onPress={start} loading={creating} style={styles.button} /></View>
       </KeyboardAvoidingView>
@@ -113,9 +106,6 @@ const styles = StyleSheet.create({
   field: { gap: 10 },
   label: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 15 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  joinRules: { flexDirection: "row", gap: 10 },
-  rule: { flex: 1, minHeight: 48, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  ruleText: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 13 },
   selectWrap: { borderWidth: 1, borderRadius: 18, padding: 12, gap: 10 },
   selectValue: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 18 },
   selectOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
