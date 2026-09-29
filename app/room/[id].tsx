@@ -460,15 +460,7 @@ function inviteUrlForToken(token: string) {
     ? window.location.origin
     : null;
   const appOrigin = configuredPublicUrl || browserOrigin || "https://bant.app";
-  const destination = `${appOrigin}/invite/${token}`;
-
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) return destination;
-
-  const preview = new URL(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/room-invite-preview`);
-  preview.searchParams.set("token", token);
-  preview.searchParams.set("next", destination);
-  return preview.toString();
+  return `${appOrigin}/r/${token}`;
 }
 
 function moderationMessage(message?: string) {
