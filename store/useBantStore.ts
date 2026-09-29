@@ -201,13 +201,26 @@ export const useBantStore = create<BantState>((set, get) => ({
       return false;
     }
     set({ authLoading: true, toast: null });
+    const publicAppUrl = process.env.EXPO_PUBLIC_APP_URL?.replace(/\/$/, "");
+    const emailRedirectTo = publicAppUrl ? `${publicAppUrl}/auth/callback` : undefined;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName, username: normalizeUsername(username) } }
+      options: {
+        data: { display_name: displayName, username: normalizeUsername(username) },
+        emailRedirectTo
+      }
     });
     if (error) {
-      set({ authLoading: false, toast: "Could not create account." });
+      const message = error.message.toLowerCase();
+      const friendly = message.includes("email address not authorized")
+        ? "Email sign-up is not configured for public users yet."
+        : message.includes("rate limit")
+          ? "Too many confirmation emails were requested. Please try again shortly."
+          : message.includes("already registered")
+            ? "An account already exists for this email. Try logging in."
+            : error.message || "Could not create account.";
+      set({ authLoading: false, toast: friendly });
       return false;
     }
     if (!data.session) {
