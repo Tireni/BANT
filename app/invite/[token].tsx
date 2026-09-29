@@ -68,7 +68,8 @@ export default function InviteRoute() {
   if (authenticated && !profile?.onboarding_completed) return <Redirect href={onboardingRoute(profile) as any} />;
 
   const expired = preview?.invite_status === "expired";
-  const unavailable = Boolean(preview && (preview.invite_status !== "active" || preview.room_status !== "live"));
+  const invalid = !loadingPreview && !preview;
+  const unavailable = invalid || Boolean(preview && (preview.invite_status !== "active" || preview.room_status !== "live"));
 
   const continueToAuth = async (mode: "login" | "signup") => {
     if (!inviteToken) return;
@@ -95,7 +96,7 @@ export default function InviteRoute() {
 
         {unavailable ? (
           <Text style={[styles.status, { color: theme.colors.danger }]}>
-            {expired ? "This invite has expired." : "This invite is no longer available."}
+            {invalid ? "This invite is invalid." : expired ? "This invite has expired." : "This invite is no longer available."}
           </Text>
         ) : authenticated ? (
           <Text style={[styles.status, { color: theme.colors.mint }]}>
