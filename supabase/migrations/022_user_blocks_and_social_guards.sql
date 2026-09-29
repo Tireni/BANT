@@ -336,7 +336,8 @@ end;
 $$;
 
 revoke all on function public.users_blocked_between(uuid, uuid) from public;
-grant execute on function public.users_blocked_between(uuid, uuid) to authenticated;
+revoke all on function public.users_blocked_between(uuid, uuid) from anon;
+revoke all on function public.users_blocked_between(uuid, uuid) from authenticated;
 revoke all on function public.block_user(uuid) from public;
 grant execute on function public.block_user(uuid) to authenticated;
 revoke all on function public.unblock_user(uuid) from public;
