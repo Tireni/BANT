@@ -15,6 +15,7 @@ export default function Friends() {
   const theme = useTheme();
   const people = useBantStore((state) => state.people);
   const friendIds = useBantStore((state) => state.friendIds);
+  const blockedPeople = useBantStore((state) => state.blockedPeople);
   const notifications = useBantStore((state) => state.notifications);
   const loading = useBantStore((state) => state.peopleLoading);
   const loadPeople = useBantStore((state) => state.loadPeople);
@@ -23,11 +24,12 @@ export default function Friends() {
   const declineFriendRequest = useBantStore((state) => state.declineFriendRequest);
   const cancelFriendRequest = useBantStore((state) => state.cancelFriendRequest);
   const blockUser = useBantStore((state) => state.blockUser);
+  const unblockUser = useBantStore((state) => state.unblockUser);
   const joinRoomWithInviteId = useBantStore((state) => state.joinRoomWithInviteId);
   const friendshipState = useBantStore((state) => state.friendshipState);
   const loadNotifications = useBantStore((state) => state.loadNotifications);
   const markNotificationsRead = useBantStore((state) => state.markNotificationsRead);
-  const [tab, setTab] = useState<"Discover" | "Friends" | "Notifications">("Discover");
+  const [tab, setTab] = useState<"Discover" | "Friends" | "Blocked" | "Notifications">("Discover");
   const [query, setQuery] = useState("");
   const [safetyUserId, setSafetyUserId] = useState<string | null>(null);
   const [reportReason, setReportReason] = useState<"spam" | "harassment" | "unsafe" | "impersonation" | "other">("unsafe");
@@ -41,16 +43,20 @@ export default function Friends() {
     if (tab === "Notifications") void markNotificationsRead();
   }, [markNotificationsRead, tab]);
   const users = useMemo(() => {
-    const source = tab === "Friends" ? people.filter((user) => friendIds.includes(user.id)) : people;
+    const source = tab === "Friends"
+      ? people.filter((user) => friendIds.includes(user.id))
+      : tab === "Blocked"
+        ? blockedPeople
+        : people;
     return source.filter((user) => `${user.name} ${user.username}`.toLowerCase().includes(query.toLowerCase()));
-  }, [friendIds, people, query, tab]);
+  }, [blockedPeople, friendIds, people, query, tab]);
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.colors.text }]}>People</Text>
         {tab !== "Notifications" ? <BantInput placeholder="Search people" value={query} onChangeText={setQuery} /> : null}
         <View style={[styles.tabs, { backgroundColor: theme.colors.soft }]}>
-          {(["Discover", "Friends", "Notifications"] as const).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && { backgroundColor: theme.colors.blue }]}><Text style={[styles.tabText, { color: tab === item ? "#fff" : theme.colors.secondary }]}>{item}</Text></Pressable>)}
+          {(["Discover", "Friends", "Blocked", "Notifications"] as const).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && { backgroundColor: theme.colors.blue }]}><Text style={[styles.tabText, { color: tab === item ? "#fff" : theme.colors.secondary }]}>{item}</Text></Pressable>)}
         </View>
       </View>
       <ScrollView contentContainerStyle={styles.list}>
@@ -87,6 +93,9 @@ export default function Friends() {
           <View style={styles.loading}><ActivityIndicator color={theme.colors.blue} /><Text style={[styles.loadingText, { color: theme.colors.secondary }]}>Loading people...</Text></View>
         ) : users.length ? (
           users.map((user) => {
+            if (tab === "Blocked") {
+              return <UserRow key={user.id} user={user} action="Unblock" onPress={() => void unblockUser(user.id)} />;
+            }
             const state = friendshipState(user.id);
             const action = state === "friends" ? "Friends" : state === "pending_received" ? "Accept" : state === "pending_sent" ? "Request sent" : "Add friend";
             const onPress = () => {
@@ -97,7 +106,7 @@ export default function Friends() {
             };
             return <UserRow key={user.id} user={user} action={action} onPress={onPress} secondaryAction="Safety" onSecondaryPress={() => setSafetyUserId(user.id)} />;
           })
-        ) : <EmptyState title="Find people you vibe with." body="Add friends and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
+        ) : tab === "Blocked" ? <EmptyState title="No blocked users." body="People you block will appear here so you can unblock them later." /> : <EmptyState title="Find people you vibe with." body="Add friends and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
       </ScrollView>
       <BottomSheet visible={Boolean(safetyUserId)} onClose={() => setSafetyUserId(null)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Safety options</Text>
