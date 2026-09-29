@@ -7,6 +7,10 @@ alter table public.rooms
 alter table public.rooms
   drop constraint if exists rooms_max_participants_check;
 
+update public.rooms
+set max_participants = 5
+where max_participants < 5;
+
 alter table public.rooms
   add constraint rooms_max_participants_check
   check (max_participants between 5 and 100);
