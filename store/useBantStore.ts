@@ -38,7 +38,6 @@ type CreateRoomInput = {
   description: string;
   category: RoomCategory;
   privacy: RoomPrivacy;
-  joinRule: "Everyone" | "Friends only";
   maxParticipants?: number;
   noiseControl?: boolean;
 };
