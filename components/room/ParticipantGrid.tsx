@@ -42,7 +42,9 @@ export function ParticipantGrid({
         key={columns}
         keyExtractor={(user) => user.id}
         numColumns={columns}
-        scrollEnabled={false}
+        scrollEnabled={users.length > 15}
+        nestedScrollEnabled
+        style={styles.list}
         initialNumToRender={24}
         maxToRenderPerBatch={24}
         windowSize={5}
@@ -89,6 +91,7 @@ export function ParticipantGrid({
 
 const styles = StyleSheet.create({
   wrap: { width: "100%" },
+  list: { maxHeight: 520 },
   row: { alignItems: "stretch" },
   item: { alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, backgroundColor: "rgba(0,0,0,0.04)" },
   avatarWrap: { position: "relative" },
