@@ -450,9 +450,12 @@ export default function RoomScreen() {
 }
 
 function inviteUrlForToken(token: string) {
-  const destination = typeof window !== "undefined" && window.location?.origin
-    ? `${window.location.origin}/invite/${token}`
-    : `https://bant.app/invite/${token}`;
+  const configuredPublicUrl = process.env.EXPO_PUBLIC_APP_URL?.replace(/\/$/, "");
+  const browserOrigin = typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : null;
+  const appOrigin = configuredPublicUrl || browserOrigin || "https://bant.app";
+  const destination = `${appOrigin}/invite/${token}`;
 
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   if (!supabaseUrl) return destination;
