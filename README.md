@@ -81,6 +81,9 @@ Apply numbered migrations in order:
 018_rpc_permission_and_membership_hardening.sql
 019_100_person_sfu_rooms_and_feed.sql
 020_realtime_and_function_hardening.sql
+021_avatar_storage_security.sql
+022_user_blocks_and_social_guards.sql
+023_authoritative_mutation_paths.sql
 ```
 
 Migration 017 is historical: it temporarily limited the mesh implementation to eight participants. Migration 019 supersedes that launch limit after the production media path moved to LiveKit and allows room capacities from 5 through 100, defaulting to 20.
@@ -184,6 +187,8 @@ Before public launch verify:
 - Google OAuth redirect URLs configured
 - realtime publication verified
 - avatar storage policies verified
+- user blocking verified
+- sensitive friendship/invite/block mutations use RPC-only paths
 - CI green
 - two-browser media test passed
 - 10/50/100 participant load tests completed at the intended launch scale
