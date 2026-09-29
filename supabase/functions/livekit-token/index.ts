@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
     const { data: member, error: memberError } = await supabase
       .from("room_members")
-      .select("role, is_muted, profiles(display_name, username, avatar_url)")
+      .select("role, is_muted, profiles!room_members_user_id_fkey(display_name, username, avatar_url)")
       .eq("room_id", roomId)
       .eq("user_id", user.id)
       .is("left_at", null)
