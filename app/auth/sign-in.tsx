@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -13,13 +13,14 @@ import { useBantStore } from "@/store/useBantStore";
 
 export default function SignIn() {
   const theme = useTheme();
+  const params = useLocalSearchParams<{ mode?: string }>();
   const signUp = useBantStore((state) => state.signUp);
   const signIn = useBantStore((state) => state.signIn);
   const signInWithGoogle = useBantStore((state) => state.signInWithGoogle);
   const authLoading = useBantStore((state) => state.authLoading);
   const profile = useBantStore((state) => state.profile);
   const setToast = useBantStore((state) => state.setToast);
-  const [mode, setMode] = useState<"signup" | "login">("signup");
+  const [mode, setMode] = useState<"signup" | "login">(params.mode === "login" ? "login" : "signup");
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
