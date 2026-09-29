@@ -46,7 +46,7 @@ export type BantNotification = {
   id: string;
   actorId: string | null;
   targetId?: string | null;
-  targetType?: "user" | "friend_request" | "room" | "system";
+  targetType?: "user" | "friend_request" | "room_invite" | "room" | "system";
   type: NotificationType;
   body: string;
   readAt: string | null;
