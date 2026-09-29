@@ -1,4 +1,3 @@
-import { useLocalSearchParams } from "expo-router";
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BantButton } from "@/components/common/BantButton";
@@ -7,7 +6,6 @@ import { useBantStore } from "@/store/useBantStore";
 
 export default function SignIn() {
   const theme = useTheme();
-  useLocalSearchParams<{ mode?: string }>();
   const signInWithGoogle = useBantStore((state) => state.signInWithGoogle);
   const signInWithApple = useBantStore((state) => state.signInWithApple);
   const authLoading = useBantStore((state) => state.authLoading);
