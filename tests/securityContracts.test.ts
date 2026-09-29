@@ -71,6 +71,14 @@ describe("security contracts", () => {
     expect(tokenFunction).toContain("profiles!room_members_user_id_fkey");
   });
 
+
+  it("exposes only safe public invite preview metadata", () => {
+    const migration = read("supabase/migrations/025_public_invite_preview.sql").toLowerCase();
+    expect(migration).toContain("get_room_invite_preview");
+    expect(migration).toContain("grant execute on function public.get_room_invite_preview(text) to anon");
+    expect(migration).not.toContain("invitee_user_id");
+  });
+
   it("scopes avatar writes to the authenticated user's folder", () => {
     const migration = read("supabase/migrations/021_avatar_storage_security.sql").toLowerCase();
     expect(migration).toContain("(storage.foldername(name))[1] = auth.uid()::text");
