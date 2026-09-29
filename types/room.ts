@@ -11,6 +11,7 @@ export type Room = {
   speakerIds: string[];
   listenerIds: string[];
   participantCount: number;
+  speakerCount?: number;
   maxParticipants?: number;
   noiseControlEnabled?: boolean;
   isLive: boolean;
