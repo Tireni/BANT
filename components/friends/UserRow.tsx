@@ -3,7 +3,19 @@ import { BantAvatar } from "@/components/common/BantAvatar";
 import { useTheme } from "@/hooks/useTheme";
 import { User } from "@/types/user";
 
-export function UserRow({ user, action, onPress }: { user: User; action?: string; onPress?: () => void }) {
+export function UserRow({
+  user,
+  action,
+  onPress,
+  secondaryAction,
+  onSecondaryPress
+}: {
+  user: User;
+  action?: string;
+  onPress?: () => void;
+  secondaryAction?: string;
+  onSecondaryPress?: () => void;
+}) {
   const theme = useTheme();
   return (
     <View style={[styles.row, { borderColor: theme.colors.border }]}>
@@ -15,6 +27,11 @@ export function UserRow({ user, action, onPress }: { user: User; action?: string
       {action ? (
         <Pressable onPress={onPress} style={[styles.action, { backgroundColor: theme.colors.soft }]}>
           <Text style={[styles.actionText, { color: theme.colors.blue }]}>{action}</Text>
+        </Pressable>
+      ) : null}
+      {secondaryAction ? (
+        <Pressable onPress={onSecondaryPress} style={[styles.action, { backgroundColor: theme.colors.soft }]}>
+          <Text style={[styles.actionText, { color: theme.colors.danger }]}>{secondaryAction}</Text>
         </Pressable>
       ) : null}
     </View>
