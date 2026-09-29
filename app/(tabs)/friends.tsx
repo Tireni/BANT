@@ -19,6 +19,7 @@ export default function Friends() {
   const acceptFriendRequest = useBantStore((state) => state.acceptFriendRequest);
   const declineFriendRequest = useBantStore((state) => state.declineFriendRequest);
   const cancelFriendRequest = useBantStore((state) => state.cancelFriendRequest);
+  const blockUser = useBantStore((state) => state.blockUser);
   const joinRoomWithInviteId = useBantStore((state) => state.joinRoomWithInviteId);
   const friendshipState = useBantStore((state) => state.friendshipState);
   const loadNotifications = useBantStore((state) => state.loadNotifications);
@@ -74,7 +75,7 @@ export default function Friends() {
                 {action}
               </View>
             );
-          }) : <EmptyState title="No notifications yet." body="Friend requests and room activity will show here." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />
+          }) : <EmptyState title="You're all caught up." body="Friend requests and room activity will show here." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />
         ) : loading ? (
           <View style={styles.loading}><ActivityIndicator color={theme.colors.blue} /><Text style={[styles.loadingText, { color: theme.colors.secondary }]}>Loading people...</Text></View>
         ) : users.length ? (
@@ -87,9 +88,9 @@ export default function Friends() {
               else if (state === "pending_sent") void cancelFriendRequest(user.id);
               else void sendFriendRequest(user.id);
             };
-            return <UserRow key={user.id} user={user} action={action} onPress={onPress} />;
+            return <UserRow key={user.id} user={user} action={action} onPress={onPress} secondaryAction="Block" onSecondaryPress={() => void blockUser(user.id)} />;
           })
-        ) : <EmptyState title="BANT is better with people." body="Add friends and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
+        ) : <EmptyState title="Find people you vibe with." body="Add friends and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
       </ScrollView>
     </SafeAreaView>
   );
