@@ -1,11 +1,14 @@
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BantInput } from "@/components/common/BantInput";
+import { BantButton } from "@/components/common/BantButton";
+import { BottomSheet } from "@/components/common/BottomSheet";
 import { EmptyState } from "@/components/common/EmptyState";
 import { UserRow } from "@/components/friends/UserRow";
 import { useTheme } from "@/hooks/useTheme";
+import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import { useBantStore } from "@/store/useBantStore";
 
 export default function Friends() {
@@ -26,6 +29,10 @@ export default function Friends() {
   const markNotificationsRead = useBantStore((state) => state.markNotificationsRead);
   const [tab, setTab] = useState<"Discover" | "Friends" | "Notifications">("Discover");
   const [query, setQuery] = useState("");
+  const [safetyUserId, setSafetyUserId] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState<"spam" | "harassment" | "unsafe" | "impersonation" | "other">("unsafe");
+  const [reportDescription, setReportDescription] = useState("");
+  const [reporting, setReporting] = useState(false);
   useEffect(() => {
     void loadPeople();
     void loadNotifications();
@@ -88,10 +95,58 @@ export default function Friends() {
               else if (state === "pending_sent") void cancelFriendRequest(user.id);
               else void sendFriendRequest(user.id);
             };
-            return <UserRow key={user.id} user={user} action={action} onPress={onPress} secondaryAction="Block" onSecondaryPress={() => void blockUser(user.id)} />;
+            return <UserRow key={user.id} user={user} action={action} onPress={onPress} secondaryAction="Safety" onSecondaryPress={() => setSafetyUserId(user.id)} />;
           })
         ) : <EmptyState title="Find people you vibe with." body="Add friends and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
       </ScrollView>
+      <BottomSheet visible={Boolean(safetyUserId)} onClose={() => setSafetyUserId(null)}>
+        <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Safety options</Text>
+        <Text style={[styles.notificationMeta, { color: theme.colors.secondary }]}>Block this user or send a report to BANT.</Text>
+        <View style={styles.reportReasons}>
+          {(["spam", "harassment", "unsafe", "impersonation", "other"] as const).map((reason) => (
+            <Pressable key={reason} onPress={() => setReportReason(reason)} style={[styles.reasonChip, { backgroundColor: reportReason === reason ? theme.colors.blue : theme.colors.soft, borderColor: reportReason === reason ? theme.colors.blue : theme.colors.border }]}>
+              <Text style={[styles.reasonText, { color: reportReason === reason ? "#fff" : theme.colors.secondary }]}>{reason}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <TextInput
+          value={reportDescription}
+          onChangeText={setReportDescription}
+          placeholder="Optional report details"
+          placeholderTextColor={theme.colors.muted}
+          selectionColor={theme.colors.blue}
+          multiline
+          maxLength={1200}
+          style={[styles.reportInput, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+        />
+        <View style={styles.safetyActions}>
+          <BantButton title="Report user" variant="danger" loading={reporting} onPress={async () => {
+            if (!hasSupabaseConfig || !safetyUserId) return;
+            setReporting(true);
+            const session = useBantStore.getState().session;
+            const { error } = await supabase.from("reports").insert({
+              reporter_id: session?.user.id,
+              target_type: "user",
+              target_id: safetyUserId,
+              reason: reportReason,
+              description: reportDescription.trim() || null
+            });
+            setReporting(false);
+            if (error) {
+              useBantStore.getState().setToast("Unable to submit report.");
+              return;
+            }
+            useBantStore.getState().setToast("Report submitted");
+            setReportDescription("");
+            setSafetyUserId(null);
+          }} />
+          <BantButton title="Block user" variant="ghost" onPress={async () => {
+            if (!safetyUserId) return;
+            const ok = await blockUser(safetyUserId);
+            if (ok) setSafetyUserId(null);
+          }} />
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -111,5 +166,11 @@ const styles = StyleSheet.create({
   notificationMeta: { fontFamily: "PlusJakartaSans_500Medium", fontSize: 12, marginTop: 6 },
   requestActions: { flexDirection: "row", gap: 8, marginTop: 12 },
   inlineAction: { minHeight: 34, borderRadius: 10, paddingHorizontal: 12, justifyContent: "center" },
-  inlineActionText: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 12 }
+  inlineActionText: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 12 },
+  sheetTitle: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 22, marginBottom: 8 },
+  reportReasons: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14, marginBottom: 12 },
+  reasonChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  reasonText: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 12, textTransform: "capitalize" },
+  reportInput: { minHeight: 96, borderWidth: 1, borderRadius: 16, padding: 12, textAlignVertical: "top", fontFamily: "PlusJakartaSans_500Medium", fontSize: 14, outlineStyle: "none" as never },
+  safetyActions: { gap: 10, marginTop: 12 }
 });
