@@ -82,11 +82,13 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
           element.autoplay = true;
           element.setAttribute("playsinline", "true");
           document.body.appendChild(element);
-          remoteAudioElementsRef.current.set(track.sid, [element]);
+          const trackKey = track.sid ?? track.mediaStreamTrack.id;
+          remoteAudioElementsRef.current.set(trackKey, [element]);
         })
         .on(RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach((element) => element.remove());
-          remoteAudioElementsRef.current.delete(track.sid);
+          const trackKey = track.sid ?? track.mediaStreamTrack.id;
+          remoteAudioElementsRef.current.delete(trackKey);
         })
         .on(RoomEvent.Reconnecting, () => setStatus("reconnecting"))
         .on(RoomEvent.Reconnected, () => setStatus("connected"))
