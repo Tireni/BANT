@@ -450,8 +450,17 @@ export default function RoomScreen() {
 }
 
 function inviteUrlForToken(token: string) {
-  if (typeof window !== "undefined" && window.location?.origin) return `${window.location.origin}/invite/${token}`;
-  return `https://bant.app/invite/${token}`;
+  const destination = typeof window !== "undefined" && window.location?.origin
+    ? `${window.location.origin}/invite/${token}`
+    : `https://bant.app/invite/${token}`;
+
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return destination;
+
+  const preview = new URL(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/room-invite-preview`);
+  preview.searchParams.set("token", token);
+  preview.searchParams.set("next", destination);
+  return preview.toString();
 }
 
 function moderationMessage(message?: string) {
