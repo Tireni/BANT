@@ -53,6 +53,24 @@ describe("security contracts", () => {
     expect(migration).toContain("grant update (left_at)");
   });
 
+
+  it("forces room creation through the authoritative RPC", () => {
+    const migration = read("supabase/migrations/024_authoritative_room_creation.sql").toLowerCase();
+    const store = read("store/useBantStore.ts");
+    expect(migration).toContain("create or replace function public.create_room");
+    expect(migration).toContain("revoke insert on table public.rooms from authenticated");
+    expect(migration).toContain("room creation goes through rpc only");
+    expect(store).toContain('supabase.rpc("create_room"');
+    expect(store).not.toContain('.from("rooms")\n        .insert');
+  });
+
+  it("disambiguates room member profile relationships", () => {
+    const store = read("store/useBantStore.ts");
+    const tokenFunction = read("supabase/functions/livekit-token/index.ts");
+    expect(store).toContain("profiles!room_members_user_id_fkey");
+    expect(tokenFunction).toContain("profiles!room_members_user_id_fkey");
+  });
+
   it("scopes avatar writes to the authenticated user's folder", () => {
     const migration = read("supabase/migrations/021_avatar_storage_security.sql").toLowerCase();
     expect(migration).toContain("(storage.foldername(name))[1] = auth.uid()::text");
