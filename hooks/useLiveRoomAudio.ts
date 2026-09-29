@@ -13,6 +13,7 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
   const [remoteParticipantCount, setRemoteParticipantCount] = useState(0);
   const roomRef = useRef<Room | null>(null);
   const localAudioRef = useRef<LocalAudioTrack | null>(null);
+  const startingRef = useRef(false);
   const remoteAudioElementsRef = useRef<Map<string, HTMLMediaElement[]>>(new Map());
 
   const supported = Platform.OS === "web";
@@ -44,6 +45,8 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
   }, []);
 
   const start = useCallback(async () => {
+    if (startingRef.current) return;
+    if (roomRef.current && (status === "requesting" || status === "connected" || status === "reconnecting")) return;
     if (!roomId) {
       setError("Join the room before starting voice.");
       setStatus("error");
@@ -61,6 +64,7 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
     }
     if (roomRef.current && status === "connected") return;
 
+    startingRef.current = true;
     try {
       setStatus("requesting");
       setError(null);
@@ -103,6 +107,8 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
         .on(RoomEvent.Reconnecting, () => setStatus("reconnecting"))
         .on(RoomEvent.Reconnected, () => setStatus("connected"))
         .on(RoomEvent.Disconnected, () => {
+          if (roomRef.current !== room) return;
+          roomRef.current = null;
           setRemoteParticipantCount(0);
           setStatus("idle");
         });
@@ -118,6 +124,8 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
       await stop();
       setStatus("error");
       setError(err instanceof Error ? liveKitTokenErrorMessage(err.message) : "Unable to connect to room audio.");
+    } finally {
+      startingRef.current = false;
     }
   }, [effectiveMuted, roomId, status, stop, supported]);
 
