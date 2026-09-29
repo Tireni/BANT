@@ -403,8 +403,13 @@ export default function RoomScreen() {
       </BottomSheet>
       <BottomSheet visible={inviteOpen} onClose={() => setInviteOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Invite people</Text>
-        <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>ROOM LINK</Text>
-        <Text style={[styles.link, { color: theme.colors.secondary, backgroundColor: theme.colors.soft }]}>{inviteLink || "Generate a secure invite link for this room."}</Text>
+        <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>ROOM INVITE</Text>
+        <View style={[styles.inviteCard, { backgroundColor: theme.colors.soft, borderColor: theme.colors.border }]}>
+          <Text style={[styles.inviteRoomTitle, { color: theme.colors.text }]} numberOfLines={2}>{room.title}</Text>
+          <Text style={[styles.inviteRoomMeta, { color: theme.colors.secondary }]}>
+            {inviteLink ? "Secure invite link ready to copy or share." : "Generate a secure invite link for this room."}
+          </Text>
+        </View>
         <View style={{ gap: 10, marginTop: 10 }}>
           <BantButton title={inviteLink ? "Copy link" : "Generate invite link"} onPress={copy} loading={creatingInvite} />
           <BantButton title="Share" variant="ghost" disabled={!inviteLink} onPress={() => void shareInvite()} />
@@ -517,5 +522,8 @@ const styles = StyleSheet.create({
   reasonChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   reasonText: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 12, textTransform: "capitalize" },
   reportInput: { minHeight: 96, borderWidth: 1, borderRadius: 16, padding: 12, textAlignVertical: "top", fontFamily: "PlusJakartaSans_500Medium", fontSize: 14, outlineStyle: "none" as never },
-  link: { overflow: "hidden", borderRadius: 14, padding: 12, marginTop: 12, fontFamily: "PlusJakartaSans_700Bold", fontSize: 13 }
+  link: { overflow: "hidden", borderRadius: 14, padding: 12, marginTop: 12, fontFamily: "PlusJakartaSans_700Bold", fontSize: 13 },
+  inviteCard: { borderWidth: 1, borderRadius: 16, padding: 14, marginTop: 10, gap: 4 },
+  inviteRoomTitle: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 16, lineHeight: 22 },
+  inviteRoomMeta: { fontFamily: "PlusJakartaSans_600SemiBold", fontSize: 12, lineHeight: 18 }
 });
