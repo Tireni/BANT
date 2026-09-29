@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
+import { buildRtcConfig } from "@/lib/voiceConfig";
 
 type VoiceStatus = "idle" | "requesting" | "connected" | "error";
 type SignalKind = "offer" | "answer" | "ice" | "leave";
@@ -11,10 +12,6 @@ type VoiceSignal = {
   recipient_id: string;
   kind: SignalKind;
   payload: Record<string, unknown>;
-};
-
-const rtcConfig: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
 export function useRoomVoice({ roomId, currentUserId, peerIds, adminMuted = false }: { roomId?: string; currentUserId?: string; peerIds: string[]; adminMuted?: boolean }) {
@@ -71,7 +68,7 @@ export function useRoomVoice({ roomId, currentUserId, peerIds, adminMuted = fals
     if (existing) return existing;
     const stream = localStreamRef.current;
     if (!stream) return null;
-    const peer = new RTCPeerConnection(rtcConfig);
+    const peer = new RTCPeerConnection(buildRtcConfig());
     stream.getTracks().forEach((track) => peer.addTrack(track, stream));
     peer.onicecandidate = (event) => {
       if (event.candidate) {

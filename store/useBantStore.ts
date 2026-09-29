@@ -4,7 +4,8 @@ import * as Haptics from "expo-haptics";
 import { Session } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 import { create } from "zustand";
-import { authIdentifier, googleOAuthRedirectUrl, normalizeUsername } from "@/lib/authHelpers";
+import { googleOAuthRedirectUrl, normalizeUsername } from "@/lib/authHelpers";
+import { MAX_MESH_VOICE_PARTICIPANTS, clampRoomCapacity } from "@/lib/roomLogic";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import { Profile } from "@/types/profile";
 import { Room, RoomCategory, RoomPrivacy } from "@/types/room";
@@ -222,19 +223,10 @@ export const useBantStore = create<BantState>((set, get) => ({
       return false;
     }
     set({ authLoading: true, toast: null });
-    const identifier = authIdentifier(email);
-    let loginEmail = identifier.value;
-    if (identifier.kind === "username") {
-      const { data: resolvedEmail, error: lookupError } = await supabase.rpc("login_username_lookup", { p_username: identifier.value });
-      if (lookupError || !resolvedEmail) {
-        set({ authLoading: false, toast: "Username or password is incorrect." });
-        return false;
-      }
-      loginEmail = resolvedEmail;
-    }
+    const loginEmail = email.trim().toLowerCase();
     const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
     if (error || !data.session) {
-      set({ authLoading: false, toast: "Username or password is incorrect." });
+      set({ authLoading: false, toast: "Email or password is incorrect." });
       return false;
     }
     const displayName = data.user.user_metadata?.display_name ?? loginEmail.split("@")[0];
@@ -567,7 +559,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     const state = get();
     if (hasSupabaseConfig && state.session) {
       const baseSlug = slugify(input.title);
-      const maxParticipants = Math.min(Math.max(Number(input.maxParticipants ?? 20), 5), 100);
+      const maxParticipants = clampRoomCapacity(Number(input.maxParticipants ?? 8));
       const noiseControlEnabled = Boolean(input.noiseControl);
       const basePayload = {
         title: input.title.trim(),
@@ -869,7 +861,7 @@ function shapeRoom(row: any, currentUserId: string): Room {
     speakerIds: speakers.map((user) => user.id),
     listenerIds: listeners.map((user) => user.id),
     participantCount: activeMembers.length,
-    maxParticipants: Number(row.max_participants ?? Math.max(activeMembers.length, 20)),
+    maxParticipants: Number(row.max_participants ?? Math.max(activeMembers.length, MAX_MESH_VOICE_PARTICIPANTS)),
     noiseControlEnabled: Boolean(row.noise_control_enabled),
     isLive: row.status === "live",
     ownerId: row.owner_id ?? row.host_id,

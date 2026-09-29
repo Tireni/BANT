@@ -1,6 +1,6 @@
 # BANT
 
-BANT is a social conversation platform where people discover live voice rooms, join conversations, meet people, make friends, and create/moderate their own rooms.
+BANT is a social conversation app for discovering live voice rooms, joining conversations, meeting people, making friends, and moderating owned rooms.
 
 Core loop:
 
@@ -10,10 +10,11 @@ DISCOVER -> JOIN -> TALK -> CONNECT -> RETURN
 
 ## Requirements
 
-- Node.js and npm
-- A Supabase project
-- A modern browser with microphone support for web voice testing
+- Node.js 20+ and npm
+- Supabase project
+- Modern browser with microphone support for web voice testing
 - HTTPS or localhost for microphone access
+- TURN server for reliable production WebRTC across real networks
 
 ## Installation
 
@@ -27,14 +28,18 @@ Fill `.env`:
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=your-project-url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+EXPO_PUBLIC_TURN_URL=turn:your-turn-host:3478
+EXPO_PUBLIC_TURN_USERNAME=your-turn-username
+EXPO_PUBLIC_TURN_CREDENTIAL=your-turn-credential
 ```
+
+TURN values are optional for local UI testing, but required before trusting voice reliability in production networks.
 
 ## Database Setup
 
-Run the SQL files in `supabase/migrations` in this order:
+Canonical fresh database path:
 
 ```text
-000_complete_setup.sql
 001_phase1_auth_onboarding.sql
 002_phase2_rooms.sql
 003_phase3_voice_signaling.sql
@@ -50,9 +55,14 @@ Run the SQL files in `supabase/migrations` in this order:
 013_private_room_invites.sql
 014_live_room_moderation_controls.sql
 015_username_login_lookup.sql
+016_disable_insecure_username_lookup.sql
+017_limited_mesh_voice_capacity.sql
+018_rpc_permission_and_membership_hardening.sql
 ```
 
-For email/password testing, either disable email confirmations in Supabase Auth settings or confirm each test user before login. Configure Google OAuth in Supabase with the deployed web callback URL and the native deep-link callback for the `bant` scheme.
+`000_complete_setup.sql` is a legacy snapshot only. Do not run it as part of the current fresh database sequence because later migrations supersede it.
+
+Migration `015` introduced an insecure username-to-email lookup. Migration `016` revokes/drops that function, and the app no longer calls it.
 
 ## Development
 
@@ -63,122 +73,60 @@ npm run web
 ## Build And Validation
 
 ```bash
+npm ci
 npm run typecheck
-npm run build
 npm test
+npm run build
 ```
+
+CI runs the same typecheck, test, and build steps on pushes to `main` and pull requests.
 
 ## Current Product Flow
 
 1. Sign up with email/password or Google.
 2. Set display name, username, avatar, and bio.
 3. Pick interests.
-4. Enter BANT.
-5. Discover a live room.
-6. Join the room. Voice starts automatically after backend entry succeeds.
-7. Chat, mute/unmute, and talk.
-8. Add friends from People.
-9. Create a room, share private invites, and moderate participants if you own the room.
-
-## Architecture
-
-- Expo Router app targeting web and native-compatible routing.
-- Supabase Auth for email/password and Google OAuth.
-- Supabase Postgres as source of truth for profiles, rooms, room members, friendships, private invites, notifications, reports, feedback, chat, voice signaling, and moderation.
-- Supabase Realtime for room membership, chat, warning overlays, and WebRTC signaling.
-- Zustand stores client session state and cached backend data only. It is not the authority for friendships, invites, room access, or moderation.
+4. Discover or create a live room.
+5. Join a room. Voice starts after backend entry succeeds.
+6. Chat, mute/unmute, and talk.
+7. Add friends.
+8. Create private invites and moderate participants if you own the room.
 
 ## Auth
 
-- Email/password login supports either email or username in one field.
-- Username login uses `login_username_lookup(username)` to resolve the auth email without exposing profile email through normal profile queries.
-- Google OAuth uses a platform-aware callback: current web origin on web and the configured `bant` deep link on native.
+- Email/password login is email-only in this build.
+- Username login is deferred until it can be handled by a server-side auth proxy without exposing auth emails.
+- Google OAuth uses the current web origin on web and `bant://auth/callback` on native.
 - First-time users are routed into profile setup before entering the app.
 - Pending private-room invites are preserved through login and onboarding.
 
 ## Rooms And Voice
 
-- Room creation persists title, category, privacy, max participants, Noise Control setting, and owner.
+- Supabase Postgres is the source of truth for rooms, room members, friendships, private invites, notifications, reports, feedback, chat, voice signaling, and moderation.
 - Joining rooms goes through backend RPC validation and capacity checks.
-- Voice uses browser WebRTC on web with Supabase Realtime for signaling.
-- The owner is represented by `rooms.owner_id` and the owner membership role.
-
-## Friendships
-
-BANT uses mutual friendships:
-
-- send request
-- accept request
-- decline/cancel request
-- friend count and state from backend data
-
-Legacy follow tables may still exist in historical migrations for compatibility, but follows are not the current product model.
-
-## Private Invites
-
-Private room access is backend-authoritative:
-
-- owners generate secure invite tokens
-- invite links resolve through `/invite/:token`
-- direct user invites create backend notifications
-- revoked, expired, ended-room, full-room, and wrong-recipient cases are rejected by RPCs
+- Voice uses browser WebRTC mesh on web with Supabase Realtime signaling.
+- Mesh voice is capped at 8 participants in UI and database. BANT should move to an SFU such as LiveKit, Daily, Agora, Twilio Video, or mediasoup before larger live audio rooms.
+- ICE config always includes STUN and adds TURN when `EXPO_PUBLIC_TURN_*` values are configured.
 
 ## Moderation And Noise Control
 
-Room owners can:
-
-- select one or multiple participants
-- mute selected participants
-- mute all eligible participants
-- release/unmute selected participants
-- release all
-- warn selected participants when Noise Control is enabled
-- warn all eligible participants
-- end the room
-
-Host mute is persisted in `room_members`, delivered through realtime, disables the target participant's outgoing audio track, and blocks self-unmute until released.
+Room owners can mute/release selected participants, mute/release all eligible participants, send Noise Control warnings when enabled, and end the room. Host mute is persisted in `room_members`, delivered through realtime, disables the target participant's outgoing audio track, and blocks self-unmute until released.
 
 ## Testing
 
-Automated tests cover pure launch contracts:
+Automated tests cover auth helpers, OAuth redirects, onboarding routes, room capacity/category helpers, mesh voice config, friendship contracts, invite contracts, and security contracts that prevent the old username lookup from returning.
 
-- username normalization
-- email vs username login detection
-- OAuth redirect generation
-- onboarding routing
-- room capacity/category helpers
-- friendship state resolution
-- pending invite key stability
+Optional staging integration tests live under `tests/integration` and skip unless `TEST_SUPABASE_URL` and `TEST_SUPABASE_ANON_KEY` are configured.
 
-Run:
+## Production Docs
 
-```bash
-npm test
-```
-
-## Two-User Smoke Test
-
-Use two authenticated users in separate browser sessions.
-
-1. User A creates a room with Noise Control enabled.
-2. User B joins from the rooms list or a private invite.
-3. Confirm both users see synced participants.
-4. User A selects User B and mutes them.
-5. Confirm User B becomes host-muted and cannot self-unmute.
-6. User A releases User B.
-7. User B can self-mute/unmute again.
-8. User A warns User B.
-9. Confirm the warning overlay appears and dismisses.
-10. User A ends the room.
-11. Confirm participants are returned away from the ended room and new joins are rejected.
-
-## Legacy / Compatibility Schema
-
-Some historical migrations still include tables or columns such as `universities`, `university_id`, and `follows`. They remain for database compatibility and older rows. The current launch app does not require a university selection and does not use follows as the social model.
+- [Production smoke test](docs/PRODUCTION_SMOKE_TEST.md)
+- [Production checklist](docs/PRODUCTION_CHECKLIST.md)
 
 ## Production Notes
 
-- Supabase URL and anon key must be configured.
-- Supabase Google provider must include the correct callback URLs.
-- Web voice requires HTTPS or localhost and browser microphone permission.
-- Native mobile builds have not been fully production-verified in this repository.
+- Apply migrations to Supabase manually or through your chosen migration runner before deploying app code that depends on them.
+- Configure Google OAuth callback URLs in the Supabase dashboard for the deployed web domain and native scheme.
+- Verify avatar storage bucket/policies in Supabase before enabling public profile images at scale.
+- Keep `000_complete_setup.sql`, university columns, and follow tables as historical compatibility only; the active product uses profile setup and mutual friendships.
+

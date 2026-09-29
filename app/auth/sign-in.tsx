@@ -26,7 +26,7 @@ export default function SignIn() {
   const [password, setPassword] = useState("");
   const enter = async () => {
     if (!email.trim() || !password.trim()) {
-      setToast(mode === "login" ? "Enter your username or email and password" : "Enter email and password");
+      setToast("Enter email and password");
       return;
     }
     if (mode === "signup" && (!displayName.trim() || !username.trim())) {
@@ -66,7 +66,7 @@ export default function SignIn() {
             <BantInput placeholder="Username" autoCapitalize="none" value={username} onChangeText={setUsername} />
           </>
         ) : null}
-        <BantInput placeholder={mode === "login" ? "Username or email" : "Email"} autoCapitalize="none" keyboardType={mode === "login" ? "default" : "email-address"} value={email} onChangeText={setEmail} />
+        <BantInput placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
         <BantInput placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
         <BantButton title={mode === "signup" ? "Create account" : "Log in"} icon={<Mail size={20} color="#fff" />} loading={authLoading} onPress={enter} />
         <BantButton title="Continue with Google" loading={authLoading} onPress={signInWithGoogle} />

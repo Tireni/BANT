@@ -18,6 +18,7 @@ import { useRoomVoice } from "@/hooks/useRoomVoice";
 import { useTheme } from "@/hooks/useTheme";
 import { onboardingRoute } from "@/lib/onboarding";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
+import { voicePeerIdsFor } from "@/lib/voiceConfig";
 import { useBantStore } from "@/store/useBantStore";
 
 export default function RoomScreen() {
@@ -53,7 +54,7 @@ export default function RoomScreen() {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const speakers = useMemo(() => room?.speakers ?? [], [room]);
   const listeners = useMemo(() => room?.listeners ?? [], [room]);
-  const voicePeerIds = useMemo(() => [...speakers, ...listeners].map((user) => user.id), [listeners, speakers]);
+  const voicePeerIds = useMemo(() => voicePeerIdsFor(profile?.id, [...speakers, ...listeners].map((user) => user.id)), [listeners, profile?.id, speakers]);
   const voice = useRoomVoice({ roomId: room?.id, currentUserId: profile?.id, peerIds: voicePeerIds, adminMuted: Boolean(room?.currentUserAdminMuted) });
   const chat = useRoomChat(room?.id, profile?.id);
   useEffect(() => {
@@ -265,7 +266,7 @@ export default function RoomScreen() {
           <Text style={[styles.description, { color: theme.colors.secondary }]}>{room.description || "Live room discussion."}</Text>
           {activity ? <Text style={[styles.activity, { color: theme.colors.mint }]}>{activity}</Text> : null}
           <Text style={[styles.activity, { color: voice.status === "connected" ? theme.colors.mint : theme.colors.secondary }]}>
-            {voice.status === "connected" ? `Voice live${voice.remoteCount ? ` · ${voice.remoteCount} connected` : ""}` : voice.error ?? "Live audio is ready as soon as you enter."}
+            {voice.status === "connected" ? `Voice live${voice.remoteCount ? ` · ${voice.remoteCount} connected` : ""}` : voice.error ?? "Live audio supports up to 8 people in this launch build."}
           </Text>
         </View>
 
@@ -274,9 +275,9 @@ export default function RoomScreen() {
             <Pressable onPress={() => setModerationMode((value) => !value)} style={[styles.moderationButton, { backgroundColor: moderationMode ? theme.colors.warning : theme.colors.soft }]}>
               <Text style={[styles.moderationButtonText, { color: moderationMode ? "#fff" : theme.colors.text }]}>Moderate</Text>
             </Pressable>
-            <Pressable onPress={() => sendWarning()} style={[styles.moderationButton, { backgroundColor: theme.colors.warning }]}>
+            {room.noiseControlEnabled ? <Pressable onPress={() => sendWarning()} style={[styles.moderationButton, { backgroundColor: theme.colors.warning }]}>
               <Text style={[styles.moderationButtonText, { color: "#fff" }]}>Warn Everyone 🤫</Text>
-            </Pressable>
+            </Pressable> : null}
           </View>
         ) : null}
 
