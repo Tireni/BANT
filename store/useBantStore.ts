@@ -66,6 +66,7 @@ type BantState = Persisted & {
   people: User[];
   friendIds: string[];
   blockedUserIds: string[];
+  blockedPeople: User[];
   incomingFriendRequests: FriendRequestRecord[];
   outgoingFriendRequests: FriendRequestRecord[];
   friendshipStates: Record<string, FriendState>;
@@ -87,6 +88,7 @@ type BantState = Persisted & {
   declineFriendRequest: (userId: string) => Promise<boolean>;
   cancelFriendRequest: (userId: string) => Promise<boolean>;
   blockUser: (userId: string) => Promise<boolean>;
+  unblockUser: (userId: string) => Promise<boolean>;
   friendshipState: (userId: string) => FriendState;
   friendCount: () => number;
   loadPeople: () => Promise<void>;
@@ -140,6 +142,7 @@ export const useBantStore = create<BantState>((set, get) => ({
   people: [],
   friendIds: [],
   blockedUserIds: [],
+  blockedPeople: [],
   incomingFriendRequests: [],
   outgoingFriendRequests: [],
   friendshipStates: {},
@@ -155,13 +158,13 @@ export const useBantStore = create<BantState>((set, get) => ({
     });
 
     if (!hasSupabaseConfig) {
-      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, notifications: [], rooms: [], people: [], friendIds: [], blockedUserIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
+      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, notifications: [], rooms: [], people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
       return;
     }
 
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
-      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, people: [], friendIds: [], blockedUserIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
+      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
       return;
     }
 
@@ -245,7 +248,7 @@ export const useBantStore = create<BantState>((set, get) => ({
   },
   signOut: async () => {
     if (hasSupabaseConfig) await supabase.auth.signOut();
-    set({ authenticated: false, currentUser: null, session: null, profile: null, rooms: [], people: [], friendIds: [], blockedUserIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [] });
+    set({ authenticated: false, currentUser: null, session: null, profile: null, rooms: [], people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [] });
     await persist(persisted(get()));
   },
   saveOnboardingProfile: async ({ displayName, username, bio, avatarUrl }: { displayName: string; username: string; bio: string; avatarUrl?: string }) => {
@@ -438,13 +441,26 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "User blocked" });
     return true;
   },
+  unblockUser: async (userId) => {
+    const session = get().session;
+    if (!hasSupabaseConfig || !session || !userId || userId === session.user.id) return false;
+    const { error } = await supabase.rpc("unblock_user", { p_blocked_id: userId });
+    if (error) {
+      set({ toast: "Unable to unblock this user." });
+      return false;
+    }
+    await get().loadPeople();
+    set({ toast: "User unblocked" });
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    return true;
+  },
   friendshipState: (userId) => {
     return get().friendshipStates[userId] ?? "none";
   },
   friendCount: () => get().friendIds.length,
   loadPeople: async () => {
     if (!hasSupabaseConfig) {
-      set({ people: [], friendIds: [], blockedUserIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, peopleLoading: false, toast: "Supabase config is required to load people" });
+      set({ people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, peopleLoading: false, toast: "Supabase config is required to load people" });
       return;
     }
     const session = get().session;
@@ -465,13 +481,17 @@ export const useBantStore = create<BantState>((set, get) => ({
         .limit(50),
       supabase.from("friendships").select("id, user_a, user_b").or(`user_a.eq.${session.user.id},user_b.eq.${session.user.id}`),
       supabase.from("friend_requests").select("id, sender_id, receiver_id, status").eq("status", "pending").or(`sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id}`),
-      supabase.from("user_blocks").select("blocked_id").eq("blocker_id", session.user.id)
+      supabase.from("user_blocks").select("blocked_id, profiles!user_blocks_blocked_id_fkey(id, display_name, username, bio, avatar_url)").eq("blocker_id", session.user.id)
     ]);
     if (profilesError || friendshipsError || requestsError || blocksError) {
       set({ peopleLoading: false, toast: profilesError?.message ?? friendshipsError?.message ?? requestsError?.message ?? blocksError?.message ?? "Unable to load people" });
       return;
     }
     const blockedUserIds = (blocks ?? []).map((item: any) => item.blocked_id as string);
+    const blockedPeople = (blocks ?? [])
+      .map((item: any) => Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)
+      .filter(Boolean)
+      .map((row: any) => profileRowToUser(row));
     const friendIds = (friendships ?? []).map((item: any) => item.user_a === session.user.id ? item.user_b : item.user_a);
     const incoming = (requests ?? []).filter((item: any) => item.receiver_id === session.user.id).map(friendRequestRow);
     const outgoing = (requests ?? []).filter((item: any) => item.sender_id === session.user.id).map(friendRequestRow);
@@ -483,6 +503,7 @@ export const useBantStore = create<BantState>((set, get) => ({
       people: (profiles ?? []).filter((row: any) => !blockedUserIds.includes(row.id)).map((row) => profileRowToUser(row)),
       friendIds: friendIds.filter((id) => !blockedUserIds.includes(id)),
       blockedUserIds,
+      blockedPeople,
       incomingFriendRequests: incoming,
       outgoingFriendRequests: outgoing,
       friendshipStates,
@@ -771,7 +792,7 @@ export const useBantStore = create<BantState>((set, get) => ({
   resetClientState: async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (hasSupabaseConfig) await supabase.auth.signOut();
-    set({ authenticated: false, currentUser: null, themePreference: "system", hydrated: true, session: null, profile: null, authLoading: false, roomsLoading: false, peopleLoading: false, rooms: [], people: [], friendIds: [], blockedUserIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [], toast: "Client state reset" });
+    set({ authenticated: false, currentUser: null, themePreference: "system", hydrated: true, session: null, profile: null, authLoading: false, roomsLoading: false, peopleLoading: false, rooms: [], people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [], toast: "Client state reset" });
   }
 }));
 
