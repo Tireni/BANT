@@ -44,7 +44,7 @@ export default function Rooms() {
         <View style={styles.filters}>{["Live", "Popular", "New"].map((item) => <Pressable key={item} onPress={() => setFilter(item)} style={[styles.filter, { backgroundColor: filter === item ? theme.colors.blue : theme.colors.soft }]}><Text style={[styles.filterText, { color: filter === item ? "#fff" : theme.colors.secondary }]}>{item}</Text></Pressable>)}</View>
       </View>
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-        {filtered.length ? filtered.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />) : <EmptyState title="Quiet here for now." body="Start the conversation." action="Start a room" onPress={() => router.push("/room/create")} />}
+        {filtered.length ? filtered.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />) : <EmptyState title="Nothing live right now." body="Start a room." action="Start a room" onPress={() => router.push("/room/create")} />}
       </ScrollView>
       <Pressable onPress={() => router.push("/room/create")} style={[styles.fab, { backgroundColor: theme.colors.blue }, theme.shadow]}><Plus color="#fff" size={28} /></Pressable>
     </SafeAreaView>
