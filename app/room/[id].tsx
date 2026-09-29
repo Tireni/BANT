@@ -1,9 +1,8 @@
 import * as Clipboard from "expo-clipboard";
-import * as Sharing from "expo-sharing";
-import { Redirect, router, useLocalSearchParams } from "expo-router";
+ import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, Flag, Hand, Lock, Mic, MicOff, MoreHorizontal, Send, Share2, Users, Volume2, X } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/common/BottomSheet";
 import { BantButton } from "@/components/common/BantButton";
@@ -116,6 +115,19 @@ export default function RoomScreen() {
     }
     await Clipboard.setStringAsync(inviteLink);
     setToast("Invite link copied");
+  };
+
+  const shareInvite = async () => {
+    if (!inviteLink || !room) return;
+    try {
+      await Share.share({
+        title: room.title,
+        message: `${room.title}\nJoin the conversation on BANT: ${inviteLink}`,
+        url: inviteLink
+      });
+    } catch {
+      await copy();
+    }
   };
   const leave = async () => {
     if (!room) return;
@@ -394,7 +406,7 @@ export default function RoomScreen() {
         <Text style={[styles.link, { color: theme.colors.secondary, backgroundColor: theme.colors.soft }]}>{inviteLink || "Generate a secure invite link for this room."}</Text>
         <View style={{ gap: 10, marginTop: 10 }}>
           <BantButton title={inviteLink ? "Copy link" : "Generate invite link"} onPress={copy} loading={creatingInvite} />
-          <BantButton title="Share" variant="ghost" disabled={!inviteLink} onPress={() => Sharing.shareAsync(inviteLink).catch(() => copy())} />
+          <BantButton title="Share" variant="ghost" disabled={!inviteLink} onPress={() => void shareInvite()} />
         </View>
       </BottomSheet>
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
