@@ -44,5 +44,19 @@ describe("security contracts", () => {
     expect(migration).toContain("with check (false)");
     expect(migration).toContain("grant execute on function public.join_room(uuid, text) to authenticated");
   });
+
+  it("forces sensitive social and invite writes through RPCs", () => {
+    const migration = read("supabase/migrations/023_authoritative_mutation_paths.sql").toLowerCase();
+    expect(migration).toContain("friend request inserts go through rpc only");
+    expect(migration).toContain("room invite inserts go through rpc only");
+    expect(migration).toContain("block inserts go through rpc only");
+    expect(migration).toContain("grant update (left_at)");
+  });
+
+  it("scopes avatar writes to the authenticated user's folder", () => {
+    const migration = read("supabase/migrations/021_avatar_storage_security.sql").toLowerCase();
+    expect(migration).toContain("(storage.foldername(name))[1] = auth.uid()::text");
+    expect(migration).toContain("image/webp");
+  });
 });
 
