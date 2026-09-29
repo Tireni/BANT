@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
         role: member.role,
         admin_muted: Boolean(member.is_muted)
       }),
-      ttl: "10m"
+      ttl: "6h"
     });
 
     token.addGrant({
