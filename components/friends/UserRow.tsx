@@ -10,7 +10,7 @@ export function UserRow({ user, action, onPress }: { user: User; action?: string
       <BantAvatar user={user} />
       <View style={styles.mid}>
         <Text style={[styles.name, { color: theme.colors.text }]}>{user.name}</Text>
-        <Text style={[styles.meta, { color: theme.colors.secondary }]}>{user.online ? user.roomId ? `In a room now` : "Online" : "Offline"}</Text>
+        <Text style={[styles.meta, { color: theme.colors.secondary }]}>@{user.username}</Text>
       </View>
       {action ? (
         <Pressable onPress={onPress} style={[styles.action, { backgroundColor: theme.colors.soft }]}>
