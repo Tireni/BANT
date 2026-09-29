@@ -1,25 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { buildIceServers, voicePeerIdsFor } from "../lib/voiceConfig";
+import { liveKitTokenErrorMessage } from "../lib/livekitConfig";
 
-describe("voice config", () => {
-  it("uses STUN by default", () => {
-    expect(buildIceServers({})).toEqual([{ urls: "stun:stun.l.google.com:19302" }]);
+describe("LiveKit config", () => {
+  it("maps configuration failures to a safe user message", () => {
+    expect(liveKitTokenErrorMessage("LiveKit is not configured")).toBe("Room audio is not configured yet.");
   });
 
-  it("adds TURN only when configured", () => {
-    expect(buildIceServers({
-      EXPO_PUBLIC_TURN_URL: "turn:turn.example.com:3478",
-      EXPO_PUBLIC_TURN_USERNAME: "bant",
-      EXPO_PUBLIC_TURN_CREDENTIAL: "secret"
-    })).toEqual([
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "turn:turn.example.com:3478", username: "bant", credential: "secret" }
-    ]);
+  it("maps ended rooms safely", () => {
+    expect(liveKitTokenErrorMessage("This room has ended")).toBe("This room has ended.");
   });
 
-  it("limits mesh peers and excludes the current user", () => {
-    const ids = ["u1", "u2", "u3", "u4", "u5", "u6", "u7", "u8", "u9"];
-    expect(voicePeerIdsFor("u1", ids)).toEqual(["u2", "u3", "u4", "u5", "u6", "u7", "u8"]);
+  it("does not expose arbitrary server errors", () => {
+    expect(liveKitTokenErrorMessage("LIVEKIT_API_SECRET=super-secret")).toBe("Unable to connect to room audio.");
   });
 });
-
