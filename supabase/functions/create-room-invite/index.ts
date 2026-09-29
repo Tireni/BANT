@@ -48,10 +48,20 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (roomError || !room) return json({ error: "Room not found" }, 404);
-    if ((room.owner_id ?? room.host_id) !== user.id) {
-      return json({ error: "Only the room owner can create invites" }, 403);
-    }
     if (room.status !== "live") return json({ error: "This room has ended" }, 409);
+
+    const { data: membership, error: membershipError } = await admin
+      .from("room_members")
+      .select("user_id")
+      .eq("room_id", roomId)
+      .eq("user_id", user.id)
+      .is("left_at", null)
+      .maybeSingle();
+
+    if (membershipError) return json({ error: "Unable to validate room membership" }, 500);
+    if (!membership && (room.owner_id ?? room.host_id) !== user.id) {
+      return json({ error: "Join the room before inviting people" }, 403);
+    }
 
     if (inviteeUserId) {
       const { data: invitee } = await admin.from("profiles").select("id").eq("id", inviteeUserId).maybeSingle();
