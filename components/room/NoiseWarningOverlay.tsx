@@ -13,8 +13,8 @@ type RoomWarning = {
 };
 
 export function NoiseWarningOverlay({ roomId, currentUserId }: { roomId?: string; currentUserId?: string }) {
-  const theme = useTheme();
   const [warnings, setWarnings] = useState<RoomWarning[]>([]);
+  const seenRef = useRef<Set<string>>(new Set());
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(() => {
@@ -26,6 +26,8 @@ export function NoiseWarningOverlay({ roomId, currentUserId }: { roomId?: string
         const warning = payload.new as RoomWarning;
         if (warning.target_user_id && warning.target_user_id !== currentUserId) return;
         const id = warning.id ?? `${Date.now()}-${Math.random()}`;
+        if (seenRef.current.has(id)) return;
+        seenRef.current.add(id);
         setWarnings((current) => [...current, { ...warning, id }]);
         const timer = setTimeout(() => {
           setWarnings((current) => current.filter((item) => item.id !== id));
@@ -38,6 +40,7 @@ export function NoiseWarningOverlay({ roomId, currentUserId }: { roomId?: string
     return () => {
       timersRef.current.forEach((timer) => clearTimeout(timer));
       timersRef.current.clear();
+      seenRef.current.clear();
       void supabase.removeChannel(channel);
     };
   }, [currentUserId, roomId]);
@@ -46,13 +49,42 @@ export function NoiseWarningOverlay({ roomId, currentUserId }: { roomId?: string
 
   return (
     <View pointerEvents="none" style={styles.container}>
-      {warnings.map((warning) => (
-        <Animated.View key={warning.id} style={[styles.toast, { backgroundColor: theme.colors.surface, borderColor: theme.colors.warning }]}> 
-          <Text style={[styles.symbol, { color: theme.colors.warning }]}>🤫</Text>
-          <Text style={[styles.text, { color: theme.colors.text }]}>{warning.message || "Easy on the noise"}</Text>
-        </Animated.View>
-      ))}
+      {warnings.map((warning) => <WarningToast key={warning.id} warning={warning} />)}
     </View>
+  );
+}
+
+function WarningToast({ warning }: { warning: RoomWarning }) {
+  const theme = useTheme();
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(progress, {
+      toValue: 1,
+      friction: 7,
+      tension: 80,
+      useNativeDriver: true
+    }).start();
+  }, [progress]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.toast,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.warning,
+          opacity: progress,
+          transform: [
+            { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) },
+            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }
+          ]
+        }
+      ]}
+    >
+      <Text style={[styles.symbol, { color: theme.colors.warning }]}>{"\uD83E\uDD2B"}</Text>
+      <Text style={[styles.text, { color: theme.colors.text }]}>{warning.message || "Easy on the noise"}</Text>
+    </Animated.View>
   );
 }
 

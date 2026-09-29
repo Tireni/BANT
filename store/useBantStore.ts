@@ -1,12 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
 import * as Haptics from "expo-haptics";
 import { Session } from "@supabase/supabase-js";
+import { Platform } from "react-native";
 import { create } from "zustand";
+import { authIdentifier, googleOAuthRedirectUrl, normalizeUsername } from "@/lib/authHelpers";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import { Profile } from "@/types/profile";
 import { Room, RoomCategory, RoomPrivacy } from "@/types/room";
 import { User } from "@/types/user";
-import { University } from "@/types/university";
 
 type ThemePreference = "light" | "dark" | "system";
 type FriendState = "none" | "pending_sent" | "pending_received" | "friends";
@@ -54,7 +56,6 @@ export type BantNotification = {
 type BantState = Persisted & {
   authenticated: boolean;
   currentUser: User | null;
-  selectedUniversity: University | null;
   hydrated: boolean;
   session: Session | null;
   profile: Profile | null;
@@ -74,11 +75,9 @@ type BantState = Persisted & {
   signIn: (input: { email: string; password: string }) => Promise<boolean>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  completeOnboarding: (input: { university: University; interests: string[]; displayName: string; username: string; bio?: string }) => Promise<boolean>;
   saveOnboardingProfile: (input: { displayName: string; username: string; bio: string; avatarUrl?: string }) => Promise<boolean>;
   saveOnboardingInterests: (interests: string[]) => Promise<boolean>;
   finishOnboarding: () => Promise<boolean>;
-  selectUniversity: (university: University) => Promise<void>;
   setTheme: (theme: ThemePreference) => Promise<void>;
   setToast: (message: string | null) => void;
   addFriend: (userId: string) => Promise<boolean>;
@@ -98,6 +97,7 @@ type BantState = Persisted & {
   createRoomInvite: (roomId: string, inviteeId?: string | null) => Promise<RoomInvite | null>;
   revokeRoomInvite: (inviteId: string) => Promise<boolean>;
   joinRoomWithInvite: (inviteToken: string, role?: "speaker" | "listener") => Promise<string | null>;
+  joinRoomWithInviteId: (inviteId: string, role?: "speaker" | "listener") => Promise<string | null>;
   leaveRoom: (roomId: string) => Promise<boolean>;
   inviteToRoom: (roomId: string, inviteeId: string) => Promise<boolean>;
   resetClientState: () => Promise<void>;
@@ -126,7 +126,6 @@ function persisted(state: BantState): Persisted {
 export const useBantStore = create<BantState>((set, get) => ({
   authenticated: false,
   currentUser: null,
-  selectedUniversity: null,
   themePreference: initialPersisted.themePreference,
   hydrated: false,
   session: null,
@@ -152,13 +151,13 @@ export const useBantStore = create<BantState>((set, get) => ({
     });
 
     if (!hasSupabaseConfig) {
-      set({ authenticated: false, currentUser: null, selectedUniversity: null, session: null, profile: null, hydrated: true, notifications: [], rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
+      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, notifications: [], rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
       return;
     }
 
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
-      set({ authenticated: false, currentUser: null, selectedUniversity: null, session: null, profile: null, hydrated: true, people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
+      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
       return;
     }
 
@@ -174,13 +173,17 @@ export const useBantStore = create<BantState>((set, get) => ({
       return;
     }
     set({ authLoading: true, toast: null });
-    const redirectTo = "bant://auth/callback";
+    const redirectTo = googleOAuthRedirectUrl({
+      platform: Platform.OS,
+      origin: typeof window !== "undefined" ? window.location?.origin : undefined,
+      nativeUrl: Linking.createURL("/auth/callback")
+    });
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo }
     });
     if (error) {
-      set({ authLoading: false, toast: error.message });
+      set({ authLoading: false, toast: "Google sign-in could not be completed." });
       return;
     }
     set({ authLoading: false });
@@ -197,7 +200,7 @@ export const useBantStore = create<BantState>((set, get) => ({
       options: { data: { display_name: displayName, username: normalizeUsername(username) } }
     });
     if (error) {
-      set({ authLoading: false, toast: error.message });
+      set({ authLoading: false, toast: "Could not create account." });
       return false;
     }
     if (!data.session) {
@@ -206,7 +209,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     }
     const profileResult = await ensureProfile(data.session, displayName, username);
     if (!profileResult.ok) {
-      set({ authLoading: false, toast: `Account confirmed, but profile setup failed: ${profileResult.error}` });
+      set({ authLoading: false, toast: "Account confirmed, but profile setup failed. Contact support." });
       return false;
     }
     await loadProfileIntoState(data.session, set);
@@ -219,16 +222,26 @@ export const useBantStore = create<BantState>((set, get) => ({
       return false;
     }
     set({ authLoading: true, toast: null });
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const identifier = authIdentifier(email);
+    let loginEmail = identifier.value;
+    if (identifier.kind === "username") {
+      const { data: resolvedEmail, error: lookupError } = await supabase.rpc("login_username_lookup", { p_username: identifier.value });
+      if (lookupError || !resolvedEmail) {
+        set({ authLoading: false, toast: "Username or password is incorrect." });
+        return false;
+      }
+      loginEmail = resolvedEmail;
+    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
     if (error || !data.session) {
-      set({ authLoading: false, toast: error?.message ?? "Unable to sign in" });
+      set({ authLoading: false, toast: "Username or password is incorrect." });
       return false;
     }
-    const displayName = data.user.user_metadata?.display_name ?? email.split("@")[0];
-    const username = data.user.user_metadata?.username ?? email.split("@")[0];
+    const displayName = data.user.user_metadata?.display_name ?? loginEmail.split("@")[0];
+    const username = data.user.user_metadata?.username ?? loginEmail.split("@")[0];
     const profileResult = await ensureProfile(data.session, displayName, username);
     if (!profileResult.ok) {
-      set({ authLoading: false, toast: `Signed in, but profile setup failed: ${profileResult.error}` });
+      set({ authLoading: false, toast: "Signed in, but profile setup failed. Contact support." });
       return false;
     }
     await loadProfileIntoState(data.session, set);
@@ -237,58 +250,8 @@ export const useBantStore = create<BantState>((set, get) => ({
   },
   signOut: async () => {
     if (hasSupabaseConfig) await supabase.auth.signOut();
-    set({ authenticated: false, currentUser: null, selectedUniversity: null, session: null, profile: null, rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [] });
+    set({ authenticated: false, currentUser: null, session: null, profile: null, rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [] });
     await persist(persisted(get()));
-  },
-  completeOnboarding: async ({ university, interests, displayName, username, bio }) => {
-    const session = get().session;
-    if (!hasSupabaseConfig || !session) {
-      set({ toast: "Sign in first" });
-      return false;
-    }
-    set({ authLoading: true, toast: null });
-    const universityRow = await ensureUniversity(university);
-    if (!universityRow) {
-      set({ authLoading: false, toast: "Unable to save university" });
-      return false;
-    }
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({
-        display_name: displayName.trim(),
-        username: normalizeUsername(username),
-        bio: bio?.trim() || null,
-        university_id: universityRow.id,
-        onboarding_completed: true
-      })
-      .eq("id", session.user.id);
-    if (profileError) {
-      set({ authLoading: false, toast: profileError.message });
-      return false;
-    }
-    const { data: interestRows, error: interestError } = await supabase
-      .from("interests")
-      .select("id, slug")
-      .in("slug", interests);
-    if (interestError) {
-      set({ authLoading: false, toast: interestError.message });
-      return false;
-    }
-    await supabase.from("user_interests").delete().eq("user_id", session.user.id);
-    if (interestRows?.length) {
-      const { error: linkError } = await supabase.from("user_interests").insert(interestRows.map((interest) => ({
-        user_id: session.user.id,
-        interest_id: interest.id
-      })));
-      if (linkError) {
-        set({ authLoading: false, toast: linkError.message });
-        return false;
-      }
-    }
-    await loadProfileIntoState(session, set);
-    set({ authLoading: false, toast: "Onboarding complete" });
-    await persist(persisted(get()));
-    return true;
   },
   saveOnboardingProfile: async ({ displayName, username, bio, avatarUrl }: { displayName: string; username: string; bio: string; avatarUrl?: string }) => {
     const session = get().session;
@@ -392,9 +355,6 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ authLoading: false, toast: "Profile complete" });
     return true;
   },
-  selectUniversity: async (university) => {
-    set({ selectedUniversity: university });
-  },
   setTheme: async (themePreference) => {
     set({ themePreference, toast: "Theme changed" });
     await persist(persisted(get()));
@@ -485,7 +445,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     const [{ data: profiles, error: profilesError }, { data: friendships, error: friendshipsError }, { data: requests, error: requestsError }] = await Promise.all([
       supabase
         .from("profiles")
-        .select("id, display_name, username, bio, avatar_url, university_id, universities(name)")
+        .select("id, display_name, username, bio, avatar_url")
         .eq("onboarding_completed", true)
         .neq("id", session.user.id)
         .order("created_at", { ascending: false }),
@@ -590,7 +550,7 @@ export const useBantStore = create<BantState>((set, get) => ({
       return;
     }
     set({ rooms: [], roomsLoading: true });
-    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, university_id, max_participants, noise_control_enabled, created_at, universities(name), room_members(user_id, role, left_at, profiles(id, display_name, username, bio, avatar_url, universities(name)))";
+    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
     const { data, error } = await supabase
       .from("rooms")
       .select(fullSelect)
@@ -606,7 +566,6 @@ export const useBantStore = create<BantState>((set, get) => ({
   createRoom: async (input) => {
     const state = get();
     if (hasSupabaseConfig && state.session) {
-      const university = state.selectedUniversity ? await ensureUniversity(state.selectedUniversity) : null;
       const baseSlug = slugify(input.title);
       const maxParticipants = Math.min(Math.max(Number(input.maxParticipants ?? 20), 5), 100);
       const noiseControlEnabled = Boolean(input.noiseControl);
@@ -616,7 +575,6 @@ export const useBantStore = create<BantState>((set, get) => ({
         description: input.description.trim() || "A fresh BANT room.",
         category: input.category,
         privacy: input.privacy,
-        university_id: university?.id ?? null,
         host_id: state.session.user.id,
         owner_id: state.session.user.id,
         status: "live"
@@ -626,7 +584,7 @@ export const useBantStore = create<BantState>((set, get) => ({
         max_participants: maxParticipants,
         noise_control_enabled: noiseControlEnabled
       };
-      const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, university_id, max_participants, noise_control_enabled, created_at, universities(name), room_members(user_id, role, left_at, profiles(id, display_name, username, bio, avatar_url, universities(name)))";
+      const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
       const { data, error } = await supabase
         .from("rooms")
         .insert(fullPayload)
@@ -725,6 +683,28 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Joined room" });
     return member?.room_id ?? null;
   },
+  joinRoomWithInviteId: async (inviteId, role = "listener") => {
+    if (!hasSupabaseConfig) {
+      set({ toast: "Supabase config is required to join rooms" });
+      return null;
+    }
+    if (!get().session) {
+      set({ toast: "Sign in first" });
+      return null;
+    }
+    const { data, error } = await supabase.rpc("join_private_room_with_invite_id", {
+      p_invite_id: inviteId,
+      p_role: role
+    });
+    if (error || !data) {
+      set({ toast: roomInviteMessage(error?.message) });
+      return null;
+    }
+    await get().loadRooms();
+    const member = Array.isArray(data) ? data[0] : data;
+    set({ toast: "Joined room" });
+    return member?.room_id ?? null;
+  },
   leaveRoom: async (roomId) => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase config is required to leave rooms" });
@@ -780,16 +760,12 @@ export const useBantStore = create<BantState>((set, get) => ({
   resetClientState: async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (hasSupabaseConfig) await supabase.auth.signOut();
-    set({ authenticated: false, currentUser: null, selectedUniversity: null, themePreference: "system", hydrated: true, session: null, profile: null, authLoading: false, roomsLoading: false, peopleLoading: false, rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [], toast: "Client state reset" });
+    set({ authenticated: false, currentUser: null, themePreference: "system", hydrated: true, session: null, profile: null, authLoading: false, roomsLoading: false, peopleLoading: false, rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [], toast: "Client state reset" });
   }
 }));
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "room";
-}
-
-function normalizeUsername(value: string) {
-  return value.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").slice(0, 24);
 }
 
 function avatarColorFor(username: string) {
@@ -830,52 +806,29 @@ async function ensureProfile(session: Session, displayName: string, username: st
   return { ok: true };
 }
 
-async function ensureUniversity(university: University): Promise<{ id: string; name: string; short_name: string; location: string } | null> {
-  const { data: existing } = await supabase
-    .from("universities")
-    .select("id, name, short_name, location")
-    .eq("name", university.name)
-    .maybeSingle();
-  if (existing) return existing;
-  const { data, error } = await supabase
-    .from("universities")
-    .insert({ name: university.name, short_name: university.shortName, location: university.location })
-    .select("id, name, short_name, location")
-    .single();
-  return error ? null : data;
-}
-
 async function loadProfileIntoState(session: Session, set: (partial: Partial<BantState>) => void) {
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, display_name, username, university_id, bio, avatar_url, onboarding_completed, onboarding_step, user_status, occupation_category, occupation_custom, institution_source, created_at, updated_at, universities(name, short_name, location)")
+    .select("id, display_name, username, university_id, bio, avatar_url, onboarding_completed, onboarding_step, user_status, occupation_category, occupation_custom, institution_source, created_at, updated_at")
     .eq("id", session.user.id)
     .maybeSingle();
 
-  const university = Array.isArray(profile?.universities) ? profile?.universities[0] : profile?.universities;
   const currentUser: User | null = profile ? {
     id: profile.id,
     name: profile.display_name,
     username: profile.username,
-    university: university?.name ?? "BANT",
     avatarColor: avatarColorFor(profile.username),
     avatar_url: profile.avatar_url,
     bio: profile.bio ?? "",
     online: true
-  } : null;
-  const selectedUniversity: University | null = university ? {
-    id: profile?.university_id ?? university.name,
-    name: university.name,
-    shortName: university.short_name,
-    location: university.location
   } : null;
   const shapedProfile: Profile | null = profile ? {
     id: profile.id,
     display_name: profile.display_name,
     username: profile.username,
     university_id: profile.university_id,
-    university_name: university?.name ?? null,
-    university_short_name: university?.short_name ?? null,
+    university_name: null,
+    university_short_name: null,
     bio: profile.bio,
     avatar_url: profile.avatar_url,
     onboarding_completed: profile.onboarding_completed,
@@ -887,17 +840,15 @@ async function loadProfileIntoState(session: Session, set: (partial: Partial<Ban
     created_at: profile.created_at,
     updated_at: profile.updated_at
   } : null;
-  set({ authenticated: Boolean(session), session, profile: shapedProfile, currentUser, selectedUniversity });
+  set({ authenticated: Boolean(session), session, profile: shapedProfile, currentUser });
 }
 
 function shapeRoom(row: any, currentUserId: string): Room {
-  const university = Array.isArray(row.universities) ? row.universities[0] : row.universities;
   const activeMembers = ((row.room_members ?? []) as any[]).filter((member) => !member.left_at);
   const users: { role: "owner" | "host" | "speaker" | "listener"; user: User }[] = [];
   activeMembers.forEach((member) => {
     const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
-    const profileUniversity = Array.isArray(profile?.universities) ? profile?.universities[0] : profile?.universities;
-    const user = profileToUser(profile, profileUniversity?.name ?? university?.name ?? "BANT");
+    const user = profileToUser(profile);
     if (!user) return;
     users.push({
       role: member.role as "owner" | "host" | "speaker" | "listener",
@@ -907,13 +858,13 @@ function shapeRoom(row: any, currentUserId: string): Room {
   const speakers = users.filter((member) => member.role === "owner" || member.role === "host" || member.role === "speaker").map((member) => member.user);
   const listeners = users.filter((member) => member.role === "listener").map((member) => member.user);
   const currentMember = activeMembers.find((member) => member.user_id === currentUserId);
+  const mutedUserIds = activeMembers.filter((member) => Boolean(member.is_muted)).map((member) => member.user_id);
   return {
     id: row.id,
     title: row.title,
     slug: row.slug,
     description: row.description || "A fresh BANT room.",
     category: row.category as RoomCategory,
-    university: university?.name ?? "BANT",
     privacy: row.privacy as RoomPrivacy,
     speakerIds: speakers.map((user) => user.id),
     listenerIds: listeners.map((user) => user.id),
@@ -924,17 +875,18 @@ function shapeRoom(row: any, currentUserId: string): Room {
     ownerId: row.owner_id ?? row.host_id,
     speakers,
     listeners,
-    currentUserRole: currentMember?.role
+    currentUserRole: currentMember?.role,
+    mutedUserIds,
+    currentUserAdminMuted: Boolean(currentMember?.is_muted)
   };
 }
 
-function profileToUser(profile: any, university: string): User | null {
+function profileToUser(profile: any): User | null {
   if (!profile) return null;
   return {
     id: profile.id,
     name: profile.display_name,
     username: profile.username,
-    university,
     avatarColor: avatarColorFor(profile.username ?? profile.id),
     avatar_url: profile.avatar_url ?? null,
     bio: profile.bio ?? "",
@@ -943,12 +895,10 @@ function profileToUser(profile: any, university: string): User | null {
 }
 
 function profileRowToUser(row: any): User {
-  const university = Array.isArray(row.universities) ? row.universities[0] : row.universities;
   return {
     id: row.id,
     name: row.display_name,
     username: row.username,
-    university: university?.name ?? "BANT",
     avatarColor: avatarColorFor(row.username ?? row.id),
     avatar_url: row.avatar_url ?? null,
     bio: row.bio ?? "",

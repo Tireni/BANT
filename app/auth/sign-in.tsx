@@ -51,7 +51,7 @@ export default function SignIn() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.wrap}>
         <View>
           <Text style={[styles.title, { color: theme.colors.text }]}>Welcome to BANT</Text>
-          <Text style={[styles.body, { color: theme.colors.secondary }]}>Your campus conversations start here.</Text>
+          <Text style={[styles.body, { color: theme.colors.secondary }]}>Find your people. Join the conversation.</Text>
         </View>
         <View style={[styles.switcher, { backgroundColor: theme.colors.soft }]}>
           {(["signup", "login"] as const).map((item) => (

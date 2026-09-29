@@ -16,7 +16,6 @@ export default function Home() {
   const rooms = useBantStore((state) => state.rooms);
   const loadRooms = useBantStore((state) => state.loadRooms);
   const user = useBantStore((state) => state.currentUser);
-  const campus = useBantStore((state) => state.selectedUniversity);
   useEffect(() => {
     void loadRooms();
   }, [loadRooms]);
@@ -29,7 +28,7 @@ export default function Home() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.topbar}>
           <Image source={mascot} style={styles.logo} resizeMode="contain" />
-          <Text style={[styles.pill, { backgroundColor: theme.colors.soft, color: theme.colors.blue }]}>{campus?.shortName ?? "BANT"}</Text>
+          <Text style={[styles.pill, { backgroundColor: theme.colors.soft, color: theme.colors.blue }]}>BANT</Text>
           <View style={styles.right}><Bell size={22} color={theme.colors.secondary} /><BantAvatar user={user} size={38} /></View>
         </View>
         <View>

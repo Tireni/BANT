@@ -54,7 +54,7 @@ export default function RoomScreen() {
   const speakers = useMemo(() => room?.speakers ?? [], [room]);
   const listeners = useMemo(() => room?.listeners ?? [], [room]);
   const voicePeerIds = useMemo(() => [...speakers, ...listeners].map((user) => user.id), [listeners, speakers]);
-  const voice = useRoomVoice({ roomId: room?.id, currentUserId: profile?.id, peerIds: voicePeerIds });
+  const voice = useRoomVoice({ roomId: room?.id, currentUserId: profile?.id, peerIds: voicePeerIds, adminMuted: Boolean(room?.currentUserAdminMuted) });
   const chat = useRoomChat(room?.id, profile?.id);
   useEffect(() => {
     if (!room || !profile?.id) return;
@@ -82,6 +82,25 @@ export default function RoomScreen() {
       void supabase.removeChannel(channel);
     };
   }, [loadRooms, room?.id]);
+  useEffect(() => {
+    if (!hasSupabaseConfig || !room?.id) return;
+    const channel = supabase
+      .channel(`room:${room.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "rooms", filter: `id=eq.${room.id}` }, (payload) => {
+        const next = payload.new as { status?: string };
+        if (next.status === "ended") {
+          voice.stop();
+          setToast("Room ended");
+          router.replace("/(tabs)/rooms");
+          return;
+        }
+        void loadRooms();
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadRooms, room?.id, setToast, voice.stop]);
   const redirectHref = !authenticated ? "/auth/welcome" : !profile?.onboarding_completed ? (onboardingRoute(profile) as any) : null;
   const generateInvite = async () => {
     if (!room) return;
@@ -154,17 +173,14 @@ export default function RoomScreen() {
     };
   };
 
-  const sendWarning = async (targetUserId?: string) => {
+  const sendWarning = async (targetUserIds?: string[]) => {
     if (!hasSupabaseConfig || !profile?.id || !room?.id) return;
-    const payload: { room_id: string; sender_id: string; message: string; target_user_id?: string | null } = {
-      room_id: room.id,
-      sender_id: profile.id,
-      message: "Easy on the noise"
-    };
-    if (targetUserId) payload.target_user_id = targetUserId;
-    const { error } = await supabase.from("room_warnings").insert(payload);
+    const { error } = await supabase.rpc("send_room_warning", {
+      p_room_id: room.id,
+      p_target_user_ids: targetUserIds && targetUserIds.length ? targetUserIds : null
+    });
     if (error) {
-      setToast(error.message);
+      setToast(moderationMessage(error.message));
       return;
     }
     setSelectedUserIds([]);
@@ -174,37 +190,56 @@ export default function RoomScreen() {
 
   const warnSelected = async () => {
     if (!selectedUserIds.length) return;
-    await Promise.all(selectedUserIds.map((userId) => sendWarning(userId)));
+    await sendWarning(selectedUserIds);
   };
 
-  const muteParticipants = async (targetUserIds?: string[]) => {
+  const moderateParticipants = async (action: "mute" | "unmute", targetUserIds?: string[]) => {
     if (!room || !profile?.id || !hasSupabaseConfig) return;
     const isOwner = room.ownerId === profile.id;
     if (!isOwner) return;
     const ids = (targetUserIds && targetUserIds.length ? targetUserIds : allParticipants.map((user) => user.id).filter((userId) => userId !== room.ownerId)).filter(Boolean);
     if (!ids.length) return;
-    const { error } = await supabase
-      .from("room_members")
-      .update({ is_muted: true, muted_by_owner: profile.id, muted_at: new Date().toISOString() })
-      .in("user_id", ids)
-      .eq("room_id", room.id);
+    const { error } = await supabase.rpc("moderate_room_members", {
+      p_room_id: room.id,
+      p_target_user_ids: ids,
+      p_action: action
+    });
     if (error) {
-      setToast(error.message);
+      setToast(moderationMessage(error.message));
       return;
     }
+    await loadRooms();
     setSelectedUserIds([]);
     setModerationMode(false);
     setModerationAction(null);
-    setToast("Participants muted");
+    setToast(action === "mute" ? "Participants muted" : "Participants released");
+  };
+
+  const moderateAllParticipants = async (action: "mute" | "unmute") => {
+    if (!room || !profile?.id || !hasSupabaseConfig) return;
+    const { error } = await supabase.rpc("moderate_room_all_members", {
+      p_room_id: room.id,
+      p_action: action
+    });
+    if (error) {
+      setToast(moderationMessage(error.message));
+      return;
+    }
+    await loadRooms();
+    setSelectedUserIds([]);
+    setModerationMode(false);
+    setModerationAction(null);
+    setToast(action === "mute" ? "Participants muted" : "Participants released");
   };
 
   const endRoom = async () => {
     if (!hasSupabaseConfig || !profile?.id || !room?.id) return;
-    const { error } = await supabase.from("rooms").update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", room.id);
+    const { error } = await supabase.rpc("end_room", { p_room_id: room.id });
     if (error) {
-      setToast(error.message);
+      setToast(moderationMessage(error.message));
       return;
     }
+    voice.stop();
     router.replace("/(tabs)/rooms");
   };
 
@@ -252,6 +287,7 @@ export default function RoomScreen() {
             selectedUserIds={selectedUserIds}
             onToggleUser={(userId) => {
               if (!moderationMode) return;
+              if (userId === room.ownerId) return;
               setSelectedUserIds((current) => current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]);
             }}
             moderationMode={moderationMode}
@@ -259,7 +295,7 @@ export default function RoomScreen() {
             currentUserId={profile?.id}
             onWarnSelected={warnSelected}
             noiseControlEnabled={Boolean(room.noiseControlEnabled)}
-            mutedUserIds={[]}
+            mutedUserIds={room.mutedUserIds ?? []}
           />
         </View>
         <Text style={[styles.section, { color: theme.colors.muted }]}>CHAT</Text>
@@ -309,10 +345,7 @@ export default function RoomScreen() {
           </>
         ) : (
           <>
-            <RoomControlButton label={voiceLabel} active={voice.status === "connected"} onPress={toggleVoice} icon={voice.muted ? <MicOff size={20} color={theme.colors.blue} /> : <Mic size={20} color={voice.status === "connected" ? theme.colors.blue : theme.colors.text} />} />
-            <RoomControlButton label={handRaised ? "Raised" : "Hand"} active={handRaised} onPress={() => { setHandRaised(!handRaised); setToast("Hand raised"); }} icon={<Hand size={20} color={handRaised ? theme.colors.blue : theme.colors.text} />} />
-            <RoomControlButton label="People" onPress={() => setPeopleOpen(true)} icon={<Users size={20} color={theme.colors.text} />} />
-            <RoomControlButton label="Invite" onPress={() => setInviteOpen(true)} icon={<Share2 size={20} color={theme.colors.text} />} />
+            <RoomControlButton label={voice.adminMuted ? "Host Muted" : voiceLabel} active={voice.status === "connected"} onPress={toggleVoice} icon={voice.muted ? <MicOff size={20} color={voice.adminMuted ? theme.colors.danger : theme.colors.blue} /> : <Mic size={20} color={voice.status === "connected" ? theme.colors.blue : theme.colors.text} />} />
             <RoomControlButton label="Leave" danger onPress={leave} icon={<X size={20} color={theme.colors.danger} />} />
           </>
         )}
@@ -322,7 +355,8 @@ export default function RoomScreen() {
         <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>SELECTED: {selectedUserIds.length}</Text>
         {moderationAction === "mute" ? (
           <View style={styles.sheetActions}>
-            <BantButton title={selectedUserIds.length > 1 ? "Mute Selected" : selectedUserIds.length === 1 ? "Mute Selected" : "Mute All"} onPress={() => void muteParticipants(selectedUserIds.length ? selectedUserIds : allParticipants.map((user) => user.id).filter((userId) => userId !== room.ownerId))} />
+            <BantButton title={selectedUserIds.length ? "Mute Selected" : "Mute All"} onPress={() => selectedUserIds.length ? void moderateParticipants("mute", selectedUserIds) : void moderateAllParticipants("mute")} />
+            <BantButton title={selectedUserIds.length ? "Release Selected" : "Release All"} variant="ghost" onPress={() => selectedUserIds.length ? void moderateParticipants("unmute", selectedUserIds) : void moderateAllParticipants("unmute")} />
             <BantButton title="Close" variant="ghost" onPress={() => { setModerationMode(false); setModerationAction(null); setSelectedUserIds([]); }} />
           </View>
         ) : (
@@ -403,6 +437,16 @@ export default function RoomScreen() {
 function inviteUrlForToken(token: string) {
   if (typeof window !== "undefined" && window.location?.origin) return `${window.location.origin}/invite/${token}`;
   return `https://bant.app/invite/${token}`;
+}
+
+function moderationMessage(message?: string) {
+  const value = (message ?? "").toLowerCase();
+  if (value.includes("owner")) return "Only the room owner can do that.";
+  if (value.includes("noise")) return "Noise Control is not enabled.";
+  if (value.includes("full")) return "Room is full.";
+  if (value.includes("ended") || value.includes("live")) return "This room has ended.";
+  if (value.includes("auth")) return "Sign in first.";
+  return "Unable to complete moderation action.";
 }
 
 const styles = StyleSheet.create({

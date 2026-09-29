@@ -19,6 +19,7 @@ export default function Friends() {
   const acceptFriendRequest = useBantStore((state) => state.acceptFriendRequest);
   const declineFriendRequest = useBantStore((state) => state.declineFriendRequest);
   const cancelFriendRequest = useBantStore((state) => state.cancelFriendRequest);
+  const joinRoomWithInviteId = useBantStore((state) => state.joinRoomWithInviteId);
   const friendshipState = useBantStore((state) => state.friendshipState);
   const loadNotifications = useBantStore((state) => state.loadNotifications);
   const markNotificationsRead = useBantStore((state) => state.markNotificationsRead);
@@ -33,7 +34,7 @@ export default function Friends() {
   }, [markNotificationsRead, tab]);
   const users = useMemo(() => {
     const source = tab === "Friends" ? people.filter((user) => friendIds.includes(user.id)) : people;
-    return source.filter((user) => `${user.name} ${user.username} ${user.university}`.toLowerCase().includes(query.toLowerCase()));
+    return source.filter((user) => `${user.name} ${user.username}`.toLowerCase().includes(query.toLowerCase()));
   }, [friendIds, people, query, tab]);
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
@@ -54,6 +55,15 @@ export default function Friends() {
                 </Pressable>
                 <Pressable onPress={() => item.targetId && void declineFriendRequest(item.targetId)} style={[styles.inlineAction, { backgroundColor: theme.colors.soft }]}>
                   <Text style={[styles.inlineActionText, { color: theme.colors.text }]}>Decline</Text>
+                </Pressable>
+              </View>
+            ) : item.type === "room_invite" ? (
+              <View style={styles.requestActions}>
+                <Pressable
+                  onPress={() => item.targetId && void joinRoomWithInviteId(item.targetId).then((roomId) => roomId && router.push(`/room/${roomId}`))}
+                  style={[styles.inlineAction, { backgroundColor: theme.colors.blue }]}
+                >
+                  <Text style={[styles.inlineActionText, { color: "#fff" }]}>Join</Text>
                 </Pressable>
               </View>
             ) : null;
@@ -79,7 +89,7 @@ export default function Friends() {
             };
             return <UserRow key={user.id} user={user} action={action} onPress={onPress} />;
           })
-        ) : <EmptyState title="BANT is better with people." body="Add friends from your campus and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
+        ) : <EmptyState title="BANT is better with people." body="Add friends and jump into rooms together." action="Explore rooms" onPress={() => router.push("/(tabs)/rooms")} />}
       </ScrollView>
     </SafeAreaView>
   );

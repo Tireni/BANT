@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { Bell, GraduationCap, Info, MessageSquare, Shield, Sparkles, Tags, UserRound } from "lucide-react-native";
+import { Bell, Info, MessageSquare, Shield, Sparkles, Tags, UserRound } from "lucide-react-native";
 import { ReactNode, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -83,7 +83,7 @@ export default function Profile() {
         <View style={[styles.profile, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <BantAvatar user={user} size={86} />
           <Text style={[styles.name, { color: theme.colors.text }]}>{user.name}</Text>
-          <Text style={[styles.meta, { color: theme.colors.secondary }]}>{user.university} - @{user.username}</Text>
+          <Text style={[styles.meta, { color: theme.colors.secondary }]}>@{user.username}</Text>
           {user.bio ? <Text style={[styles.bio, { color: theme.colors.secondary }]}>{user.bio}</Text> : null}
           <BantButton title="Edit profile" variant="ghost" onPress={() => setEditOpen(true)} style={{ marginTop: 8 }} />
         </View>

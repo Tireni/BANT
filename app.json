@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "BANT",
-    "slug": "bant-demo",
+    "slug": "bant",
     "scheme": "bant",
     "version": "1.0.0",
     "orientation": "portrait",

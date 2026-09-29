@@ -7,7 +7,6 @@ export type Room = {
   slug: string;
   description: string;
   category: RoomCategory;
-  university: string;
   privacy: RoomPrivacy;
   speakerIds: string[];
   listenerIds: string[];
@@ -19,4 +18,6 @@ export type Room = {
   speakers?: import("./user").User[];
   listeners?: import("./user").User[];
   currentUserRole?: "owner" | "host" | "speaker" | "listener";
+  mutedUserIds?: string[];
+  currentUserAdminMuted?: boolean;
 };

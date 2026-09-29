@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Redirect, router } from "expo-router";
 import { CheckCircle2 } from "lucide-react-native";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
@@ -5,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BantButton } from "@/components/common/BantButton";
 import { OnboardingStep } from "@/components/onboarding/OnboardingStep";
 import { useTheme } from "@/hooks/useTheme";
+import { PENDING_INVITE_TOKEN_KEY } from "@/lib/roomInvites";
 import { useBantStore } from "@/store/useBantStore";
 
 export default function CompleteStep() {
@@ -18,7 +20,10 @@ export default function CompleteStep() {
 
   const finish = async () => {
     const ok = await finishOnboarding();
-    if (ok) router.replace("/(tabs)/home");
+    if (ok) {
+      const pendingInvite = await AsyncStorage.getItem(PENDING_INVITE_TOKEN_KEY);
+      router.replace(pendingInvite ? `/invite/${pendingInvite}` : "/(tabs)/home");
+    }
   };
 
   return (
@@ -53,14 +58,6 @@ function Summary({ label, value }: { label: string; value: string }) {
       <Text style={[styles.summaryValue, { color: theme.colors.text }]}>{value}</Text>
     </View>
   );
-}
-
-function occupationLabel(category?: string | null, custom?: string | null) {
-  if (category === "job_seeker") return "Job Seeker";
-  if (category === "non_student") return "Non-student";
-  if (!category) return "Non-student";
-  if (category === "other" && custom) return custom;
-  return category.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 const styles = StyleSheet.create({

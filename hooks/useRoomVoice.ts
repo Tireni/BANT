@@ -17,7 +17,7 @@ const rtcConfig: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
-export function useRoomVoice({ roomId, currentUserId, peerIds }: { roomId?: string; currentUserId?: string; peerIds: string[] }) {
+export function useRoomVoice({ roomId, currentUserId, peerIds, adminMuted = false }: { roomId?: string; currentUserId?: string; peerIds: string[]; adminMuted?: boolean }) {
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +93,7 @@ export function useRoomVoice({ roomId, currentUserId, peerIds }: { roomId?: stri
       }
       audio.srcObject = remoteStream;
       void audio.play().catch(() => {
-        setError("Tap Join Voice again if your browser blocks audio playback.");
+        setError("Try voice again if your browser blocks audio playback.");
       });
       connectedPeerIdsRef.current.add(peerId);
       setRemoteCount(remoteAudioRef.current.size);
@@ -164,7 +164,7 @@ export function useRoomVoice({ roomId, currentUserId, peerIds }: { roomId?: stri
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       localStreamRef.current = stream;
       stream.getAudioTracks().forEach((track) => {
-        track.enabled = !muted;
+        track.enabled = !muted && !adminMuted;
       });
       setStatus("connected");
       peerIdsRef.current = uniquePeerIds;
@@ -177,7 +177,7 @@ export function useRoomVoice({ roomId, currentUserId, peerIds }: { roomId?: stri
       setStatus("error");
       setError(err instanceof Error ? err.message : "Microphone permission was denied.");
     }
-  }, [currentUserId, muted, roomId, startOffer, supported, uniquePeerIds]);
+  }, [adminMuted, currentUserId, muted, roomId, startOffer, supported, uniquePeerIds]);
 
   const stop = useCallback(() => {
     peerIdsRef.current.forEach((peerId) => void sendSignal(peerId, "leave", {}));
@@ -196,12 +196,26 @@ export function useRoomVoice({ roomId, currentUserId, peerIds }: { roomId?: stri
   }, [sendSignal]);
 
   const toggleMute = useCallback(() => {
+    if (adminMuted) {
+      localStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = false;
+      });
+      setMuted(true);
+      return;
+    }
     const next = !muted;
     localStreamRef.current?.getAudioTracks().forEach((track) => {
       track.enabled = !next;
     });
     setMuted(next);
-  }, [muted]);
+  }, [adminMuted, muted]);
+
+  useEffect(() => {
+    localStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = !muted && !adminMuted;
+    });
+    if (adminMuted) setMuted(true);
+  }, [adminMuted, muted]);
 
   useEffect(() => {
     if (status !== "connected" || !roomId || !currentUserId) return;
@@ -235,6 +249,7 @@ export function useRoomVoice({ roomId, currentUserId, peerIds }: { roomId?: stri
   return {
     status,
     muted,
+    adminMuted,
     error,
     remoteCount,
     supported,

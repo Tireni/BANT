@@ -16,7 +16,6 @@ export default function Rooms() {
   const theme = useTheme();
   const rooms = useBantStore((state) => state.rooms);
   const loadRooms = useBantStore((state) => state.loadRooms);
-  const campus = useBantStore((state) => state.selectedUniversity);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("For You");
   const [filter, setFilter] = useState("Live");
@@ -35,7 +34,7 @@ export default function Rooms() {
     if (filter === "Popular") return [...visible].sort((a, b) => b.participantCount - a.participantCount);
     if (filter === "New") return [...visible].reverse();
     return visible.filter((room) => room.isLive);
-  }, [rooms, category, campus?.name, query, filter]);
+  }, [rooms, category, query, filter]);
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
       <View style={styles.header}>

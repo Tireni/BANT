@@ -113,40 +113,6 @@ begin
 end;
 $$;
 
-create or replace function public.join_private_room_with_invite_id(
-  p_invite_id uuid,
-  p_role text default 'listener'
-)
-returns public.room_members
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  current_user_id uuid := auth.uid();
-  invite_row public.room_invites;
-begin
-  if current_user_id is null then
-    raise exception 'Not authenticated';
-  end if;
-
-  select *
-  into invite_row
-  from public.room_invites
-  where id = p_invite_id;
-
-  if invite_row.id is null then
-    raise exception 'Invite is invalid';
-  end if;
-
-  if invite_row.invitee_user_id is not null and invite_row.invitee_user_id <> current_user_id then
-    raise exception 'You do not have access to this room';
-  end if;
-
-  return public.join_private_room_with_invite(invite_row.invite_token, p_role);
-end;
-$$;
-
 create or replace function public.revoke_room_invite(p_invite_id uuid)
 returns public.room_invites
 language plpgsql
@@ -308,6 +274,40 @@ begin
   end if;
 
   return member_row;
+end;
+$$;
+
+create or replace function public.join_private_room_with_invite_id(
+  p_invite_id uuid,
+  p_role text default 'listener'
+)
+returns public.room_members
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  invite_row public.room_invites;
+begin
+  if current_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select *
+  into invite_row
+  from public.room_invites
+  where id = p_invite_id;
+
+  if invite_row.id is null then
+    raise exception 'Invite is invalid';
+  end if;
+
+  if invite_row.invitee_user_id is not null and invite_row.invitee_user_id <> current_user_id then
+    raise exception 'You do not have access to this room';
+  end if;
+
+  return public.join_private_room_with_invite(invite_row.invite_token, p_role);
 end;
 $$;
 
