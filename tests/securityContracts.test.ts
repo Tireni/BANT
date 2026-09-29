@@ -26,10 +26,16 @@ describe("security contracts", () => {
     expect(migration).toContain("drop function if exists public.login_username_lookup(text)");
   });
 
-  it("enforces the launch voice capacity through a new migration", () => {
-    const migration = read("supabase/migrations/017_limited_mesh_voice_capacity.sql").toLowerCase();
-    expect(migration).toContain("max_participants between 2 and 8");
-    expect(migration).toContain("set max_participants = 8");
+  it("supersedes the old mesh capacity with a 100-person SFU migration", () => {
+    const migration = read("supabase/migrations/019_100_person_sfu_rooms_and_feed.sql").toLowerCase();
+    expect(migration).toContain("max_participants between 5 and 100");
+    expect(migration).toContain("get_live_room_feed");
+  });
+
+  it("keeps LiveKit secrets server-side", () => {
+    const tokenFunction = read("supabase/functions/livekit-token/index.ts");
+    expect(tokenFunction).toContain("LIVEKIT_API_SECRET");
+    expect(tokenFunction).not.toContain("EXPO_PUBLIC_LIVEKIT_API_SECRET");
   });
 
   it("keeps room membership inserts on the RPC path", () => {
