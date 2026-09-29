@@ -62,7 +62,7 @@ export default function RoomScreen() {
       }
       return;
     }
-    void joinRoom(room.id, room.ownerId === profile.id ? "speaker" : "listener").then((joined) => {
+    void joinRoom(room.id, "speaker").then((joined) => {
       if (joined && voice.supported) {
         void loadRoom(room.id);
         void voice.start();
@@ -207,7 +207,7 @@ export default function RoomScreen() {
       setToast(moderationMessage(error.message));
       return;
     }
-    await loadRooms();
+    await loadRoom(room.id);
     setSelectedUserIds([]);
     setModerationMode(false);
     setModerationAction(null);
@@ -224,7 +224,7 @@ export default function RoomScreen() {
       setToast(moderationMessage(error.message));
       return;
     }
-    await loadRooms();
+    await loadRoom(room.id);
     setSelectedUserIds([]);
     setModerationMode(false);
     setModerationAction(null);
@@ -399,7 +399,7 @@ export default function RoomScreen() {
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Room options</Text>
         <BantButton title="Report room" variant="danger" icon={<Flag size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setReportOpen(true); }} />
-        <BantButton title="Leave quietly" variant="ghost" onPress={leave} style={{ marginTop: 10 }} />
+        {isOwner ? <BantButton title="End room" variant="danger" onPress={endRoom} style={{ marginTop: 10 }} /> : <BantButton title="Leave quietly" variant="ghost" onPress={leave} style={{ marginTop: 10 }} />}
       </BottomSheet>
       <BottomSheet visible={reportOpen} onClose={() => setReportOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Report room</Text>
