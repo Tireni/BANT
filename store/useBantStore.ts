@@ -602,33 +602,25 @@ export const useBantStore = create<BantState>((set, get) => ({
       const baseSlug = slugify(input.title);
       const maxParticipants = clampRoomCapacity(Number(input.maxParticipants ?? DEFAULT_ROOM_PARTICIPANTS));
       const noiseControlEnabled = Boolean(input.noiseControl);
-      const basePayload = {
-        title: input.title.trim(),
-        slug: `${baseSlug}-${Date.now().toString(36)}`,
-        description: input.description.trim() || "A fresh BANT room.",
-        category: input.category,
-        privacy: input.privacy,
-        host_id: state.session.user.id,
-        owner_id: state.session.user.id,
-        status: "live"
-      };
-      const fullPayload = {
-        ...basePayload,
-        max_participants: maxParticipants,
-        noise_control_enabled: noiseControlEnabled
-      };
-      const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles!room_members_user_id_fkey(id, display_name, username, bio, avatar_url))";
-      const { data, error } = await supabase
-        .from("rooms")
-        .insert(fullPayload)
-        .select(fullSelect)
-        .single();
-      if (error || !data) {
+      const slug = `${baseSlug}-${Date.now().toString(36)}`;
+      const { data, error } = await supabase.rpc("create_room", {
+        p_title: input.title.trim(),
+        p_slug: slug,
+        p_description: input.description.trim() || "A fresh BANT room.",
+        p_category: input.category,
+        p_privacy: input.privacy,
+        p_max_participants: maxParticipants,
+        p_noise_control_enabled: noiseControlEnabled
+      });
+      if (error || !data?.id) {
         set({ toast: error?.message ?? "Unable to create room" });
         return null;
       }
-      const room = shapeRoom(data, state.session.user.id);
-      set({ rooms: upsertRoom(get().rooms, room) });
+      const room = await get().loadRoom(data.id);
+      if (!room) {
+        set({ toast: "Room was created, but could not be loaded." });
+        return null;
+      }
       set({ toast: "Room created" });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       return room;
