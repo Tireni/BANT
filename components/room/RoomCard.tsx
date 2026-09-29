@@ -20,7 +20,7 @@ export function RoomCard({ room, onPress, rejoin = false }: { room: Room; onPres
         <View style={styles.stack}>
           {speakers.map((user, index) => <View key={user.id} style={{ marginLeft: index ? -12 : 0 }}><BantAvatar user={user} size={34} /></View>)}
         </View>
-        <View style={styles.meta}><Mic2 size={15} color={theme.colors.mint} /><Text style={[styles.metaText, { color: theme.colors.secondary }]}>{room.speakerIds?.length ?? 0} talking</Text></View>
+        <View style={styles.meta}><Mic2 size={15} color={theme.colors.mint} /><Text style={[styles.metaText, { color: theme.colors.secondary }]}>{room.speakerCount ?? room.speakerIds?.length ?? 0} talking</Text></View>
         <View style={styles.meta}><Users size={15} color={theme.colors.blue} /><Text style={[styles.metaText, { color: theme.colors.secondary }]}>{room.participantCount ?? 0} here</Text></View>
         <View style={styles.join}><VoiceWaveform /><Text style={[styles.joinText, { color: theme.colors.blue }]}>{rejoin ? "Rejoin" : "Open"}</Text></View>
       </View>
