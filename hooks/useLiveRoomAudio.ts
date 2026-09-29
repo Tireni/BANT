@@ -68,7 +68,17 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
         body: { room_id: roomId }
       });
       if (tokenError || !data?.token || !data.url) {
-        throw new Error(liveKitTokenErrorMessage(tokenError?.message));
+        let detail = tokenError?.message ?? "Unable to create room audio token";
+        const context = (tokenError as any)?.context;
+        if (context && typeof context.clone === "function") {
+          try {
+            const payload = await context.clone().json();
+            if (typeof payload?.error === "string" && payload.error.trim()) detail = payload.error;
+          } catch {
+            // Keep the transport error when the response body is not JSON.
+          }
+        }
+        throw new Error(detail);
       }
 
       const room = new Room({ adaptiveStream: true, dynacast: true });
