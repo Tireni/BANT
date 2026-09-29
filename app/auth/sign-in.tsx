@@ -7,14 +7,9 @@ import { useBantStore } from "@/store/useBantStore";
 export default function SignIn() {
   const theme = useTheme();
   const signInWithGoogle = useBantStore((state) => state.signInWithGoogle);
-  const signInWithApple = useBantStore((state) => state.signInWithApple);
   const authLoading = useBantStore((state) => state.authLoading);
-  const continueWith = async (provider: "google" | "apple") => {
-    if (provider === "google") {
-      await signInWithGoogle();
-    } else {
-      await signInWithApple();
-    }
+  const continueWithGoogle = async () => {
+    await signInWithGoogle();
   };
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -25,10 +20,9 @@ export default function SignIn() {
         </View>
         <View style={[styles.providerCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <Text style={[styles.providerTitle, { color: theme.colors.text }]}>Continue with</Text>
-          <BantButton title="Continue with Google" loading={authLoading} onPress={() => void continueWith("google")} />
-          <BantButton title="Continue with Apple" variant="ghost" loading={authLoading} onPress={() => void continueWith("apple")} />
+          <BantButton title="Continue with Google" loading={authLoading} onPress={() => void continueWithGoogle()} />
           <Text style={[styles.providerNote, { color: theme.colors.secondary }]}>
-            Email and password sign-up is temporarily unavailable.
+            Google sign-in is currently the only way to access BANT.
           </Text>
         </View>
       </KeyboardAvoidingView>
