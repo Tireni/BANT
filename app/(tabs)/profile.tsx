@@ -97,7 +97,7 @@ export default function Profile() {
         <SettingsRow icon={<Tags size={20} color={theme.colors.blue} />} title="Interests" onPress={() => router.push("/onboarding/interests")} />
         <SettingsRow icon={<Bell size={20} color={theme.colors.blue} />} title={`Notifications${unread ? ` (${unread})` : ""}`} onPress={() => router.push("/(tabs)/friends")} />
         <SettingsRow icon={<MessageSquare size={20} color={theme.colors.blue} />} title="Send feedback" onPress={() => setFeedbackOpen(true)} />
-        <SettingsRow icon={<Shield size={20} color={theme.colors.blue} />} title="Safety" onPress={() => setToast("Safety tools need backend support before launch")} />
+        <SettingsRow icon={<Shield size={20} color={theme.colors.blue} />} title="Safety" onPress={() => { setToast("Use Block on the People screen to control who can contact you."); router.push("/(tabs)/friends"); }} />
         <SettingsRow icon={<Info size={20} color={theme.colors.blue} />} title="About BANT" onPress={() => setToast("A safe place to just talk")} />
         <BantButton title="Log out" variant="ghost" onPress={async () => { await signOut(); router.replace("/auth/welcome"); }} />
         <BantButton title="Reset client state" variant="danger" onPress={async () => { await resetClientState(); router.replace("/auth/welcome"); }} />
