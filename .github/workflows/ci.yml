@@ -24,6 +24,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check LiveKit Edge Function
+        run: deno check supabase/functions/livekit-token/index.ts
+
       - name: Test
         run: npm test
 
