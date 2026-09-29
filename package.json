@@ -11,7 +11,8 @@
     "build": "expo export -p web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "loadtest:room": "node scripts/load-test-room.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.0",
