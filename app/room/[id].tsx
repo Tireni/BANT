@@ -246,7 +246,7 @@ export default function RoomScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
       <NoiseWarningOverlay roomId={room?.id} currentUserId={profile?.id} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.icon}><ArrowLeft color={theme.colors.text} size={24} /></Pressable>
+        <Pressable onPress={() => isOwner ? setMenuOpen(true) : void leave()} style={styles.icon}><ArrowLeft color={theme.colors.text} size={24} /></Pressable>
         <View style={styles.headerTitle}>
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>{room.title}</Text>
           <Text style={[styles.privacy, { color: theme.colors.secondary }]}>{room.category} · {participantCount} / {room.maxParticipants ?? 20}</Text>
