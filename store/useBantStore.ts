@@ -722,45 +722,28 @@ export const useBantStore = create<BantState>((set, get) => ({
     if (!session) return false;
     const room = get().rooms.find((item) => item.id === roomId);
 
-    const { error: leaveError } = await supabase
+    if (room?.ownerId === session.user.id) {
+      const { error } = await supabase.rpc("end_room", { p_room_id: roomId });
+      if (error) {
+        set({ toast: roomInviteMessage(error.message) });
+        return false;
+      }
+      set({ rooms: get().rooms.filter((item) => item.id !== roomId), toast: "Room ended" });
+      return true;
+    }
+
+    const { error } = await supabase
       .from("room_members")
       .update({ left_at: new Date().toISOString() })
       .eq("room_id", roomId)
       .eq("user_id", session.user.id);
-    if (leaveError) {
-      set({ toast: leaveError.message });
+
+    if (error) {
+      set({ toast: error.message });
       return false;
     }
 
-    const { data: remainingMembers } = await supabase
-      .from("room_members")
-      .select("user_id")
-      .eq("room_id", roomId)
-      .is("left_at", null);
-
-    if ((remainingMembers ?? []).length === 0) {
-      set({ rooms: get().rooms.filter((item) => item.id !== roomId) });
-      set({ toast: "Room closed because it was empty" });
-      return true;
-    }
-
-    if (room?.ownerId === session.user.id) {
-      const { error: endError } = await supabase
-        .from("rooms")
-        .update({ status: "ended", ended_at: new Date().toISOString() })
-        .eq("id", roomId);
-      if (endError) {
-        set({ toast: endError.message });
-        return false;
-      }
-    }
-
-    if (room?.ownerId === session.user.id) {
-      set({ rooms: get().rooms.filter((item) => item.id !== roomId) });
-    } else {
-      await get().loadRoom(roomId);
-    }
-    set({ toast: room?.ownerId === session.user.id ? "Room ended" : "Left room" });
+    set({ rooms: get().rooms.filter((item) => item.id !== roomId), toast: "Left room" });
     return true;
   },
   inviteToRoom: async (roomId, inviteeId) => {
