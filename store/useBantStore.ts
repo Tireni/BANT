@@ -680,14 +680,12 @@ export const useBantStore = create<BantState>((set, get) => ({
       set({ toast: "Sign in first" });
       return null;
     }
-    const { data, error } = inviteeId
-      ? await supabase.rpc("create_room_invite", {
-          p_room_id: roomId,
-          p_invitee_user_id: inviteeId
-        })
-      : await supabase.rpc("create_share_room_invite", {
-          p_room_id: roomId
-        });
+    const { data, error } = await supabase.functions.invoke("create-room-invite", {
+      body: {
+        room_id: roomId,
+        invitee_user_id: inviteeId
+      }
+    });
     if (error || !data) {
       set({ toast: roomInviteMessage(error?.message) });
       return null;
