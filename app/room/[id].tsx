@@ -354,6 +354,7 @@ export default function RoomScreen() {
             <RoomControlButton label="Mute" active={false} onPress={() => { setModerationAction("mute"); setModerationMode(true); setSelectedUserIds([]); }} icon={<MicOff size={20} color={theme.colors.text} />} />
             <RoomControlButton label="Moderate" active={moderationMode} onPress={() => { setModerationAction("mute"); setModerationMode(true); setSelectedUserIds([]); }} icon={<Users size={20} color={theme.colors.text} />} />
             {room.noiseControlEnabled ? <RoomControlButton label="Noise 🤫" active={moderationAction === "warn"} onPress={() => { setModerationAction("warn"); setModerationMode(true); setSelectedUserIds([]); }} icon={<Volume2 size={20} color={theme.colors.warning} />} /> : null}
+            <RoomControlButton label="Invite" active={inviteOpen} onPress={() => setInviteOpen(true)} icon={<Share2 size={20} color={theme.colors.blue} />} />
             <RoomControlButton label="End Room" danger onPress={endRoom} icon={<X size={20} color={theme.colors.danger} />} />
           </>
         ) : (
@@ -411,7 +412,8 @@ export default function RoomScreen() {
       </BottomSheet>
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Room options</Text>
-        <BantButton title="Report room" variant="danger" icon={<Flag size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setReportOpen(true); }} />
+        {isOwner ? <BantButton title="Invite people" icon={<Share2 size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setInviteOpen(true); }} /> : null}
+        <BantButton title="Report room" variant="danger" icon={<Flag size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setReportOpen(true); }} style={isOwner ? { marginTop: 10 } : undefined} />
         {isOwner ? <BantButton title="End room" variant="danger" onPress={endRoom} style={{ marginTop: 10 }} /> : <BantButton title="Leave quietly" variant="ghost" onPress={leave} style={{ marginTop: 10 }} />}
       </BottomSheet>
       <BottomSheet visible={reportOpen} onClose={() => setReportOpen(false)}>
