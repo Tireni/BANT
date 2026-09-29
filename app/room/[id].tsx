@@ -29,6 +29,7 @@ export default function RoomScreen() {
   const sendFriendRequest = useBantStore((state) => state.sendFriendRequest);
   const acceptFriendRequest = useBantStore((state) => state.acceptFriendRequest);
   const cancelFriendRequest = useBantStore((state) => state.cancelFriendRequest);
+  const blockUser = useBantStore((state) => state.blockUser);
   const createRoomInvite = useBantStore((state) => state.createRoomInvite);
   const setToast = useBantStore((state) => state.setToast);
   const joinRoom = useBantStore((state) => state.joinRoom);
@@ -378,12 +379,12 @@ export default function RoomScreen() {
           <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>SPEAKERS</Text>
           {speakers.map((user) => {
             const action = friendActionFor(user.id);
-            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} />;
+            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} secondaryAction={user.id === profile?.id ? undefined : "Block"} onSecondaryPress={() => void blockUser(user.id)} />;
           })}
           <Text style={[styles.sheetLabel, { color: theme.colors.muted, marginTop: 16 }]}>LISTENERS</Text>
           {listeners.map((user) => {
             const action = friendActionFor(user.id);
-            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} />;
+            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} secondaryAction={user.id === profile?.id ? undefined : "Block"} onSecondaryPress={() => void blockUser(user.id)} />;
           })}
         </ScrollView>
       </BottomSheet>
