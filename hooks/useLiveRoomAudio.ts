@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { LocalAudioTrack, Room, RoomEvent, createLocalAudioTrack } from "livekit-client";
+import { LocalAudioTrack, Room, RoomEvent, Track, createLocalAudioTrack } from "livekit-client";
 import { LiveKitTokenResponse, liveKitTokenErrorMessage } from "@/lib/livekitConfig";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 
@@ -13,6 +13,7 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
   const [remoteParticipantCount, setRemoteParticipantCount] = useState(0);
   const roomRef = useRef<Room | null>(null);
   const localAudioRef = useRef<LocalAudioTrack | null>(null);
+  const remoteAudioElementsRef = useRef<Map<string, HTMLMediaElement[]>>(new Map());
 
   const supported = Platform.OS === "web";
   const effectiveMuted = selfMuted || adminMuted;
@@ -30,6 +31,8 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
   const stop = useCallback(async () => {
     localAudioRef.current?.stop();
     localAudioRef.current = null;
+    remoteAudioElementsRef.current.forEach((elements) => elements.forEach((element) => element.remove()));
+    remoteAudioElementsRef.current.clear();
     const room = roomRef.current;
     roomRef.current = null;
     if (room) {
@@ -72,7 +75,19 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
       roomRef.current = room;
       room
         .on(RoomEvent.ParticipantConnected, () => setRemoteParticipantCount(room.remoteParticipants.size))
-        .on(RoomEvent.ParticipantDisconnected, () => setRemoteParticipantCount(room.remoteParticipants.size))
+.on(RoomEvent.ParticipantDisconnected, () => setRemoteParticipantCount(room.remoteParticipants.size))
+        .on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind !== Track.Kind.Audio || typeof document === "undefined") return;
+          const element = track.attach();
+          element.autoplay = true;
+          element.setAttribute("playsinline", "true");
+          document.body.appendChild(element);
+          remoteAudioElementsRef.current.set(track.sid, [element]);
+        })
+        .on(RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach((element) => element.remove());
+          remoteAudioElementsRef.current.delete(track.sid);
+        })
         .on(RoomEvent.Reconnecting, () => setStatus("reconnecting"))
         .on(RoomEvent.Reconnected, () => setStatus("connected"))
         .on(RoomEvent.Disconnected, () => {
