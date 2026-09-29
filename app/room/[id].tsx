@@ -122,8 +122,7 @@ export default function RoomScreen() {
     try {
       await Share.share({
         title: room.title,
-        message: `${room.title}\nJoin the conversation on BANT: ${inviteLink}`,
-        url: inviteLink
+        message: `${room.title}\nJoin the conversation on BANT: ${inviteLink}`
       });
     } catch {
       await copy();
