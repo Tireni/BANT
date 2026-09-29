@@ -76,6 +76,7 @@ type BantState = Persisted & {
   signUp: (input: { email: string; password: string; displayName: string; username: string }) => Promise<boolean>;
   signIn: (input: { email: string; password: string }) => Promise<boolean>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   saveOnboardingProfile: (input: { displayName: string; username: string; bio: string; avatarUrl?: string }) => Promise<boolean>;
   saveOnboardingInterests: (interests: string[]) => Promise<boolean>;
@@ -191,6 +192,27 @@ export const useBantStore = create<BantState>((set, get) => ({
     });
     if (error) {
       set({ authLoading: false, toast: "Google sign-in could not be completed." });
+      return;
+    }
+    set({ authLoading: false });
+  },
+  signInWithApple: async () => {
+    if (!hasSupabaseConfig) {
+      set({ toast: "Apple login requires Supabase env vars" });
+      return;
+    }
+    set({ authLoading: true, toast: null });
+    const redirectTo = googleOAuthRedirectUrl({
+      platform: Platform.OS,
+      origin: typeof window !== "undefined" ? window.location?.origin : undefined,
+      nativeUrl: Linking.createURL("/auth/callback")
+    });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: { redirectTo }
+    });
+    if (error) {
+      set({ authLoading: false, toast: "Apple sign-in could not be completed." });
       return;
     }
     set({ authLoading: false });
