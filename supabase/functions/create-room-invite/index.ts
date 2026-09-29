@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     let insertError: any = null;
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const inviteToken = randomToken(32);
+      const inviteToken = randomToken(12);
       const result = await admin
         .from("room_invites")
         .insert({
