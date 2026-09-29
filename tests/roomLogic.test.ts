@@ -1,18 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { MAX_MESH_VOICE_PARTICIPANTS, clampRoomCapacity, isRoomFull, isValidRoomCapacity, isValidRoomCategory } from "../lib/roomLogic";
+import {
+  MAX_ROOM_PARTICIPANTS,
+  MIN_ROOM_PARTICIPANTS,
+  DEFAULT_ROOM_PARTICIPANTS,
+  ROOM_CAPACITY_OPTIONS,
+  clampRoomCapacity,
+  isRoomFull,
+  isValidRoomCapacity,
+  isValidRoomCategory
+} from "../lib/roomLogic";
 
 describe("room logic", () => {
-  it("validates room capacity", () => {
-    expect(isValidRoomCapacity(2)).toBe(true);
-    expect(isValidRoomCapacity(MAX_MESH_VOICE_PARTICIPANTS)).toBe(true);
-    expect(isValidRoomCapacity(1)).toBe(false);
-    expect(isValidRoomCapacity(MAX_MESH_VOICE_PARTICIPANTS + 1)).toBe(false);
+  it("validates 100-person SFU room capacity", () => {
+    expect(isValidRoomCapacity(MIN_ROOM_PARTICIPANTS)).toBe(true);
+    expect(isValidRoomCapacity(20)).toBe(true);
+    expect(isValidRoomCapacity(50)).toBe(true);
+    expect(isValidRoomCapacity(100)).toBe(true);
+    expect(isValidRoomCapacity(4)).toBe(false);
+    expect(isValidRoomCapacity(101)).toBe(false);
   });
 
-  it("clamps room capacity to launch limits", () => {
-    expect(clampRoomCapacity(1)).toBe(2);
-    expect(clampRoomCapacity(120)).toBe(MAX_MESH_VOICE_PARTICIPANTS);
-    expect(clampRoomCapacity(6)).toBe(6);
+  it("clamps room capacity to production limits", () => {
+    expect(clampRoomCapacity(1)).toBe(MIN_ROOM_PARTICIPANTS);
+    expect(clampRoomCapacity(120)).toBe(MAX_ROOM_PARTICIPANTS);
+    expect(clampRoomCapacity(0)).toBe(DEFAULT_ROOM_PARTICIPANTS);
+  });
+
+  it("offers the intended launch room sizes", () => {
+    expect(ROOM_CAPACITY_OPTIONS).toEqual([5, 10, 15, 20, 30, 50, 75, 100]);
   });
 
   it("validates known categories", () => {
@@ -21,7 +36,7 @@ describe("room logic", () => {
   });
 
   it("detects full rooms", () => {
-    expect(isRoomFull(20, 20)).toBe(true);
-    expect(isRoomFull(19, 20)).toBe(false);
+    expect(isRoomFull(100, 100)).toBe(true);
+    expect(isRoomFull(99, 100)).toBe(false);
   });
 });
