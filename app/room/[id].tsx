@@ -359,6 +359,7 @@ export default function RoomScreen() {
         ) : (
           <>
             <RoomControlButton label={voice.adminMuted ? "Host Muted" : voiceLabel} active={voice.status === "connected"} onPress={toggleVoice} icon={voice.muted ? <MicOff size={20} color={voice.adminMuted ? theme.colors.danger : theme.colors.blue} /> : <Mic size={20} color={voice.status === "connected" ? theme.colors.blue : theme.colors.text} />} />
+            <RoomControlButton label="Invite" active={inviteOpen} onPress={() => setInviteOpen(true)} icon={<Share2 size={20} color={theme.colors.blue} />} />
             <RoomControlButton label="Leave" danger onPress={leave} icon={<X size={20} color={theme.colors.danger} />} />
           </>
         )}
@@ -416,8 +417,8 @@ export default function RoomScreen() {
       </BottomSheet>
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Room options</Text>
-        {isOwner ? <BantButton title="Invite people" icon={<Share2 size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setInviteOpen(true); }} /> : null}
-        <BantButton title="Report room" variant="danger" icon={<Flag size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setReportOpen(true); }} style={isOwner ? { marginTop: 10 } : undefined} />
+        <BantButton title="Invite people" icon={<Share2 size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setInviteOpen(true); }} />
+        <BantButton title="Report room" variant="danger" icon={<Flag size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setReportOpen(true); }} style={{ marginTop: 10 }} />
         {isOwner ? <BantButton title="End room" variant="danger" onPress={endRoom} style={{ marginTop: 10 }} /> : <BantButton title="Leave quietly" variant="ghost" onPress={leave} style={{ marginTop: 10 }} />}
       </BottomSheet>
       <BottomSheet visible={reportOpen} onClose={() => setReportOpen(false)}>
