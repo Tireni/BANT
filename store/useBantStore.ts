@@ -613,7 +613,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Supabase config is required to create rooms" });
     return null;
   },
-  joinRoom: async (roomId, role = "listener") => {
+  joinRoom: async (roomId, role = "speaker") => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase config is required to join rooms" });
       return false;
@@ -669,7 +669,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Invite revoked" });
     return true;
   },
-  joinRoomWithInvite: async (inviteToken, role = "listener") => {
+  joinRoomWithInvite: async (inviteToken, role = "speaker") => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase config is required to join rooms" });
       return null;
@@ -692,7 +692,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Joined room" });
     return member?.room_id ?? null;
   },
-  joinRoomWithInviteId: async (inviteId, role = "listener") => {
+  joinRoomWithInviteId: async (inviteId, role = "speaker") => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase config is required to join rooms" });
       return null;
