@@ -12,6 +12,7 @@ type VoiceSnapshot = {
   selfMuted: boolean;
   error: string | null;
   remoteCount: number;
+  connectedUserIds: string[];
 };
 
 let activeRoom: Room | null = null;
@@ -25,7 +26,8 @@ let snapshot: VoiceSnapshot = {
   status: "idle",
   selfMuted: false,
   error: null,
-  remoteCount: 0
+  remoteCount: 0,
+  connectedUserIds: []
 };
 const remoteAudioElements = new Map<string, HTMLMediaElement[]>();
 const subscribers = new Set<(next: VoiceSnapshot) => void>();
@@ -62,6 +64,7 @@ async function stopGlobalVoice() {
     roomId: null,
     status: "idle",
     remoteCount: 0,
+    connectedUserIds: [],
     error: null
   });
 }
@@ -105,15 +108,15 @@ async function startGlobalVoice(roomId: string) {
     const room = new Room({ adaptiveStream: true, dynacast: true });
     activeRoom = room;
 
+    const syncConnectedUsers = () => {
+      if (activeRoom !== room) return;
+      const ids = [room.localParticipant.identity, ...Array.from(room.remoteParticipants.values()).map((participant) => participant.identity)].filter(Boolean);
+      publish({ remoteCount: room.remoteParticipants.size, connectedUserIds: ids });
+    };
+
     room
-      .on(RoomEvent.ParticipantConnected, () => {
-        if (activeRoom !== room) return;
-        publish({ remoteCount: room.remoteParticipants.size });
-      })
-      .on(RoomEvent.ParticipantDisconnected, () => {
-        if (activeRoom !== room) return;
-        publish({ remoteCount: room.remoteParticipants.size });
-      })
+      .on(RoomEvent.ParticipantConnected, syncConnectedUsers)
+      .on(RoomEvent.ParticipantDisconnected, syncConnectedUsers)
       .on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind !== Track.Kind.Audio || typeof document === "undefined") return;
         const element = track.attach();
@@ -139,7 +142,7 @@ async function startGlobalVoice(roomId: string) {
         activeRoom = null;
         activeRoomId = null;
         localAudioTrack = null;
-        publish({ roomId: null, status: "idle", remoteCount: 0 });
+        publish({ roomId: null, status: "idle", remoteCount: 0, connectedUserIds: [] });
       });
 
     await room.connect(data.url, data.token);
@@ -156,6 +159,7 @@ async function startGlobalVoice(roomId: string) {
       roomId,
       status: "connected",
       remoteCount: room.remoteParticipants.size,
+      connectedUserIds: [room.localParticipant.identity, ...Array.from(room.remoteParticipants.values()).map((participant) => participant.identity)].filter(Boolean),
       error: null
     });
   } catch (err) {
@@ -222,6 +226,7 @@ export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: stri
     selfMuted,
     adminMuted,
     remoteCount: isThisRoom ? state.remoteCount : 0,
+    connectedUserIds: isThisRoom ? state.connectedUserIds : [],
     error: isThisRoom ? state.error : null,
     supported,
     start,
