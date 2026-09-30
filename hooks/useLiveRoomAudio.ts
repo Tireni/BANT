@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { LocalAudioTrack, Room, RoomEvent, Track, createLocalAudioTrack } from "livekit-client";
 import { LiveKitTokenResponse, liveKitTokenErrorMessage } from "@/lib/livekitConfig";
@@ -6,157 +6,226 @@ import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 
 type VoiceStatus = "idle" | "requesting" | "connected" | "reconnecting" | "error";
 
+type VoiceSnapshot = {
+  roomId: string | null;
+  status: VoiceStatus;
+  selfMuted: boolean;
+  error: string | null;
+  remoteCount: number;
+};
+
+let activeRoom: Room | null = null;
+let activeRoomId: string | null = null;
+let localAudioTrack: LocalAudioTrack | null = null;
+let starting = false;
+let selfMuted = false;
+let lastAdminMuted = false;
+let snapshot: VoiceSnapshot = {
+  roomId: null,
+  status: "idle",
+  selfMuted: false,
+  error: null,
+  remoteCount: 0
+};
+const remoteAudioElements = new Map<string, HTMLMediaElement[]>();
+const subscribers = new Set<(next: VoiceSnapshot) => void>();
+
+function publish(next: Partial<VoiceSnapshot>) {
+  snapshot = { ...snapshot, ...next };
+  subscribers.forEach((listener) => listener(snapshot));
+}
+
+async function applyMute() {
+  if (!localAudioTrack) return;
+  if (selfMuted || lastAdminMuted) await localAudioTrack.mute();
+  else await localAudioTrack.unmute();
+}
+
+async function stopGlobalVoice() {
+  localAudioTrack?.stop();
+  localAudioTrack = null;
+
+  remoteAudioElements.forEach((elements) => elements.forEach((element) => element.remove()));
+  remoteAudioElements.clear();
+
+  const room = activeRoom;
+  activeRoom = null;
+  activeRoomId = null;
+  starting = false;
+
+  if (room) {
+    room.removeAllListeners();
+    await room.disconnect();
+  }
+
+  publish({
+    roomId: null,
+    status: "idle",
+    remoteCount: 0,
+    error: null
+  });
+}
+
+async function startGlobalVoice(roomId: string) {
+  if (starting) return;
+  if (activeRoom && activeRoomId === roomId && ["requesting", "connected", "reconnecting"].includes(snapshot.status)) return;
+
+  if (activeRoom && activeRoomId !== roomId) {
+    await stopGlobalVoice();
+  }
+
+  if (!hasSupabaseConfig) {
+    publish({ status: "error", error: "Supabase env vars are required for room audio." });
+    return;
+  }
+
+  starting = true;
+  activeRoomId = roomId;
+  publish({ roomId, status: "requesting", error: null });
+
+  try {
+    const { data, error: tokenError } = await supabase.functions.invoke<LiveKitTokenResponse>("livekit-token", {
+      body: { room_id: roomId }
+    });
+
+    if (tokenError || !data?.token || !data.url) {
+      let detail = tokenError?.message ?? "Unable to create room audio token";
+      const context = (tokenError as any)?.context;
+      if (context && typeof context.clone === "function") {
+        try {
+          const payload = await context.clone().json();
+          if (typeof payload?.error === "string" && payload.error.trim()) detail = payload.error;
+        } catch {
+          // Keep transport error when body is unavailable.
+        }
+      }
+      throw new Error(detail);
+    }
+
+    const room = new Room({ adaptiveStream: true, dynacast: true });
+    activeRoom = room;
+
+    room
+      .on(RoomEvent.ParticipantConnected, () => {
+        if (activeRoom !== room) return;
+        publish({ remoteCount: room.remoteParticipants.size });
+      })
+      .on(RoomEvent.ParticipantDisconnected, () => {
+        if (activeRoom !== room) return;
+        publish({ remoteCount: room.remoteParticipants.size });
+      })
+      .on(RoomEvent.TrackSubscribed, (track) => {
+        if (track.kind !== Track.Kind.Audio || typeof document === "undefined") return;
+        const element = track.attach();
+        element.autoplay = true;
+        element.setAttribute("playsinline", "true");
+        document.body.appendChild(element);
+        const trackKey = track.sid ?? track.mediaStreamTrack.id;
+        remoteAudioElements.set(trackKey, [element]);
+      })
+      .on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach().forEach((element) => element.remove());
+        const trackKey = track.sid ?? track.mediaStreamTrack.id;
+        remoteAudioElements.delete(trackKey);
+      })
+      .on(RoomEvent.Reconnecting, () => {
+        if (activeRoom === room) publish({ status: "reconnecting" });
+      })
+      .on(RoomEvent.Reconnected, () => {
+        if (activeRoom === room) publish({ status: "connected" });
+      })
+      .on(RoomEvent.Disconnected, () => {
+        if (activeRoom !== room) return;
+        activeRoom = null;
+        activeRoomId = null;
+        localAudioTrack = null;
+        publish({ roomId: null, status: "idle", remoteCount: 0 });
+      });
+
+    await room.connect(data.url, data.token);
+
+    const audioTrack = await createLocalAudioTrack({
+      echoCancellation: true,
+      noiseSuppression: true
+    });
+    localAudioTrack = audioTrack;
+    await room.localParticipant.publishTrack(audioTrack);
+    await applyMute();
+
+    publish({
+      roomId,
+      status: "connected",
+      remoteCount: room.remoteParticipants.size,
+      error: null
+    });
+  } catch (err) {
+    await stopGlobalVoice();
+    publish({
+      status: "error",
+      error: err instanceof Error ? liveKitTokenErrorMessage(err.message) : "Unable to connect to room audio."
+    });
+  } finally {
+    starting = false;
+  }
+}
+
 export function useLiveRoomAudio({ roomId, adminMuted = false }: { roomId?: string; adminMuted?: boolean }) {
-  const [status, setStatus] = useState<VoiceStatus>("idle");
-  const [selfMuted, setSelfMuted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [remoteParticipantCount, setRemoteParticipantCount] = useState(0);
-  const roomRef = useRef<Room | null>(null);
-  const localAudioRef = useRef<LocalAudioTrack | null>(null);
-  const startingRef = useRef(false);
-  const remoteAudioElementsRef = useRef<Map<string, HTMLMediaElement[]>>(new Map());
-
+  const [state, setState] = useState(snapshot);
   const supported = Platform.OS === "web";
-  const effectiveMuted = selfMuted || adminMuted;
+  const isThisRoom = Boolean(roomId && state.roomId === roomId);
 
-  const applyEffectiveMute = useCallback(async () => {
-    const track = localAudioRef.current;
-    if (!track) return;
-    if (selfMuted || adminMuted) {
-      await track.mute();
-      return;
-    }
-    await track.unmute();
-  }, [adminMuted, selfMuted]);
-
-  const stop = useCallback(async () => {
-    localAudioRef.current?.stop();
-    localAudioRef.current = null;
-    remoteAudioElementsRef.current.forEach((elements) => elements.forEach((element) => element.remove()));
-    remoteAudioElementsRef.current.clear();
-    const room = roomRef.current;
-    roomRef.current = null;
-    if (room) {
-      room.removeAllListeners();
-      await room.disconnect();
-    }
-    setRemoteParticipantCount(0);
-    setStatus("idle");
+  useEffect(() => {
+    subscribers.add(setState);
+    setState(snapshot);
+    return () => {
+      subscribers.delete(setState);
+    };
   }, []);
 
+  useEffect(() => {
+    lastAdminMuted = adminMuted;
+    void applyMute().catch(() => {
+      publish({ error: "Unable to update microphone state." });
+    });
+  }, [adminMuted]);
+
   const start = useCallback(async () => {
-    if (startingRef.current) return;
-    if (roomRef.current && (status === "requesting" || status === "connected" || status === "reconnecting")) return;
     if (!roomId) {
-      setError("Join the room before starting voice.");
-      setStatus("error");
+      publish({ status: "error", error: "Join the room before starting voice." });
       return;
     }
     if (!supported) {
-      setError("Live room audio is web-ready in this MVP. Native audio needs a development build validation.");
-      setStatus("error");
+      publish({ status: "error", error: "Live room audio is currently available on the BANT web app." });
       return;
     }
-    if (!hasSupabaseConfig) {
-      setError("Supabase env vars are required for room audio.");
-      setStatus("error");
-      return;
+    await startGlobalVoice(roomId);
+  }, [roomId, supported]);
+
+  const stop = useCallback(async () => {
+    if (!roomId || activeRoomId === roomId) {
+      await stopGlobalVoice();
     }
-    if (roomRef.current && status === "connected") return;
-
-    startingRef.current = true;
-    try {
-      setStatus("requesting");
-      setError(null);
-      const { data, error: tokenError } = await supabase.functions.invoke<LiveKitTokenResponse>("livekit-token", {
-        body: { room_id: roomId }
-      });
-      if (tokenError || !data?.token || !data.url) {
-        let detail = tokenError?.message ?? "Unable to create room audio token";
-        const context = (tokenError as any)?.context;
-        if (context && typeof context.clone === "function") {
-          try {
-            const payload = await context.clone().json();
-            if (typeof payload?.error === "string" && payload.error.trim()) detail = payload.error;
-          } catch {
-            // Keep the transport error when the response body is not JSON.
-          }
-        }
-        throw new Error(detail);
-      }
-
-      const room = new Room({ adaptiveStream: true, dynacast: true });
-      roomRef.current = room;
-      room
-        .on(RoomEvent.ParticipantConnected, () => setRemoteParticipantCount(room.remoteParticipants.size))
-.on(RoomEvent.ParticipantDisconnected, () => setRemoteParticipantCount(room.remoteParticipants.size))
-        .on(RoomEvent.TrackSubscribed, (track) => {
-          if (track.kind !== Track.Kind.Audio || typeof document === "undefined") return;
-          const element = track.attach();
-          element.autoplay = true;
-          element.setAttribute("playsinline", "true");
-          document.body.appendChild(element);
-          const trackKey = track.sid ?? track.mediaStreamTrack.id;
-          remoteAudioElementsRef.current.set(trackKey, [element]);
-        })
-        .on(RoomEvent.TrackUnsubscribed, (track) => {
-          track.detach().forEach((element) => element.remove());
-          const trackKey = track.sid ?? track.mediaStreamTrack.id;
-          remoteAudioElementsRef.current.delete(trackKey);
-        })
-        .on(RoomEvent.Reconnecting, () => setStatus("reconnecting"))
-        .on(RoomEvent.Reconnected, () => setStatus("connected"))
-        .on(RoomEvent.Disconnected, () => {
-          if (roomRef.current !== room) return;
-          roomRef.current = null;
-          setRemoteParticipantCount(0);
-          setStatus("idle");
-        });
-
-      await room.connect(data.url, data.token);
-      const audioTrack = await createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true });
-      localAudioRef.current = audioTrack;
-      await room.localParticipant.publishTrack(audioTrack);
-      if (effectiveMuted) await audioTrack.mute();
-      setRemoteParticipantCount(room.remoteParticipants.size);
-      setStatus("connected");
-    } catch (err) {
-      await stop();
-      setStatus("error");
-      setError(err instanceof Error ? liveKitTokenErrorMessage(err.message) : "Unable to connect to room audio.");
-    } finally {
-      startingRef.current = false;
-    }
-  }, [effectiveMuted, roomId, status, stop, supported]);
+  }, [roomId]);
 
   const toggleMute = useCallback(() => {
-    setSelfMuted((value) => !value);
+    selfMuted = !selfMuted;
+    publish({ selfMuted });
+    void applyMute().catch(() => {
+      publish({ error: "Unable to update microphone state." });
+    });
   }, []);
 
-  useEffect(() => {
-    void applyEffectiveMute().catch(() => {
-      setError("Unable to update microphone state.");
-    });
-  }, [applyEffectiveMute]);
-
-  useEffect(() => {
-    return () => {
-      void stop();
-    };
-  }, [stop]);
-
   return {
-    status,
-    connected: status === "connected",
-    muted: effectiveMuted,
+    status: isThisRoom ? state.status : "idle" as VoiceStatus,
+    connected: isThisRoom && state.status === "connected",
+    muted: selfMuted || adminMuted,
     selfMuted,
     adminMuted,
-    remoteCount: remoteParticipantCount,
-    error,
+    remoteCount: isThisRoom ? state.remoteCount : 0,
+    error: isThisRoom ? state.error : null,
     supported,
     start,
     stop,
     toggleMute
   };
 }
-
