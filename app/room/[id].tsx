@@ -307,6 +307,7 @@ export default function RoomScreen() {
             onWarnSelected={warnSelected}
             noiseControlEnabled={Boolean(room.noiseControlEnabled)}
             mutedUserIds={room.mutedUserIds ?? []}
+            connectedVoiceUserIds={voice.connectedUserIds ?? []}
           />
         </View>
         <Text style={[styles.section, { color: theme.colors.muted }]}>CHAT</Text>
