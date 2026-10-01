@@ -1028,6 +1028,7 @@ class _HomeShellState extends State<HomeShell> {
         api: widget.api,
         profile: widget.profile,
         themeController: widget.themeController,
+        appState: appState,
       ),
     ];
 
