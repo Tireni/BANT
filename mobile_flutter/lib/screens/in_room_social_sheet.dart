@@ -208,7 +208,7 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
                 if (!context.mounted || !ok) return;
                 Navigator.of(context).pop();
               },
-              icon: const Icon(Icons.block_rounded, color: colors.danger),
+              icon: Icon(Icons.block_rounded, color: colors.danger),
               label: const Text('Block user'),
             ),
             if (state.error != null) ...[
