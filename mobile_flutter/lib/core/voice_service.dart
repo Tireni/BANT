@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:livekit_client/livekit_client.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum BantVoiceStatus {
@@ -54,6 +55,26 @@ class VoiceService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (publishMicrophone) {
+        final microphoneStatus = await Permission.microphone.request();
+        if (!microphoneStatus.isGranted) {
+          if (microphoneStatus.isPermanentlyDenied) {
+            throw Exception(
+              'Microphone permission is permanently denied. Enable microphone access for BANT in Android settings.',
+            );
+          }
+          throw Exception(
+            'Microphone permission was denied. Allow microphone access to speak in BANT rooms.',
+          );
+        }
+      }
+
+      // Bluetooth permission improves headset routing on Android 12+.
+      // Denial does not block normal speaker/earpiece audio.
+      try {
+        await Permission.bluetoothConnect.request();
+      } catch (_) {}
+
       final response = await supabase.functions.invoke(
         'mobile-livekit-token',
         body: {'room_id': roomId},
