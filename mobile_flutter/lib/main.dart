@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/auth_service.dart';
@@ -1068,12 +1067,11 @@ class _RoomScreenState extends State<RoomScreen> {
                     icon: const Icon(Icons.send),
                   ),
                   IconButton(
-                    onPressed: () async {
-                      final invite = await widget.api.createInvite(widget.room.id);
-                      final token = invite['invite_token']?.toString() ?? '';
-                      final link = 'https://bant-demo.vercel.app/r/$token';
-                      await Share.share(
-                        '${widget.room.title}\nJoin the conversation on BANT: $link',
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Room sharing returns in the invitations batch.'),
+                        ),
                       );
                     },
                     icon: const Icon(Icons.share),
