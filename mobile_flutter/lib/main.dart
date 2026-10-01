@@ -291,6 +291,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -302,20 +303,20 @@ class _SignInScreenState extends State<SignInScreen> {
               children: [
                 const _BrandMark(),
                 const SizedBox(height: 36),
-                const Text(
+                Text(
                   'Welcome to BANT',
                   style: TextStyle(
-                    color: BantTheme.text,
+                    color: colors.text,
                     fontSize: 34,
                     height: 1.1,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'Find your people. Join live conversations. Start your own room.',
                   style: TextStyle(
-                    color: BantTheme.secondary,
+                    color: colors.secondary,
                     fontSize: 16,
                     height: 1.45,
                     fontWeight: FontWeight.w500,
@@ -326,19 +327,19 @@ class _SignInScreenState extends State<SignInScreen> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F4FF),
+                      color: colors.soft,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.link_rounded, color: BantTheme.blue),
+                        Icon(Icons.link_rounded, color: colors.blue),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'Your room invite is saved. Continue with Google and BANT will return you to that exact room after sign-in and onboarding.',
                             style: TextStyle(
-                              color: BantTheme.text,
+                              color: colors.text,
                               fontWeight: FontWeight.w700,
                               height: 1.4,
                             ),
@@ -358,8 +359,8 @@ class _SignInScreenState extends State<SignInScreen> {
                   const SizedBox(height: 14),
                   Text(
                     error!,
-                    style: const TextStyle(
-                      color: BantTheme.danger,
+                    style: TextStyle(
+                      color: colors.danger,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -369,7 +370,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   'Google sign-in is currently the way to access BANT.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: BantTheme.secondary,
+                    color: colors.secondary,
                     fontSize: 12,
                   ),
                 ),
@@ -516,6 +517,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return _OnboardingScaffold(
       stepLabel: 'STEP 1 OF 2',
       title: 'SET UP YOUR PROFILE',
@@ -534,7 +536,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
           const CircleAvatar(
             radius: 42,
             backgroundColor: Color(0xFFE8F4FF),
-            child: Icon(Icons.person, size: 40, color: BantTheme.blue),
+            child: Icon(Icons.person, size: 40, color: colors.blue),
           ),
           const SizedBox(height: 22),
           TextField(
@@ -562,8 +564,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
               padding: const EdgeInsets.only(top: 12),
               child: Text(
                 error!,
-                style: const TextStyle(
-                  color: BantTheme.danger,
+                style: TextStyle(
+                  color: colors.danger,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -645,6 +647,7 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return _OnboardingScaffold(
       stepLabel: 'STEP 2 OF 2',
       title: 'PICK YOUR INTERESTS',
@@ -683,7 +686,7 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
                   children: [
                     for (final interest in interests)
                       ChoiceChip(
-                        selectedColor: BantTheme.blue,
+                        selectedColor: colors.blue,
                         labelStyle: TextStyle(
                           color: selected.contains(interest['slug']) ? Colors.white : BantTheme.text,
                           fontWeight: FontWeight.w800,
@@ -714,8 +717,8 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
                   const SizedBox(height: 12),
                   Text(
                     error!,
-                    style: const TextStyle(
-                      color: BantTheme.danger,
+                    style: TextStyle(
+                      color: colors.danger,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -767,6 +770,7 @@ class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return _OnboardingScaffold(
       stepLabel: 'COMPLETE',
       title: 'COMPLETE SETUP',
@@ -796,12 +800,12 @@ class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
             widget.banner!,
             const SizedBox(height: 18),
           ],
-          const Icon(Icons.check_circle, color: BantTheme.mint, size: 52),
+          Icon(Icons.check_circle, color: colors.mint, size: 52),
           const SizedBox(height: 12),
           const Text(
             "You're ready.",
             style: TextStyle(
-              color: BantTheme.text,
+              color: colors.text,
               fontSize: 24,
               fontWeight: FontWeight.w900,
             ),
@@ -809,8 +813,8 @@ class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
           const SizedBox(height: 8),
           Text(
             '@${widget.profile.username}',
-            style: const TextStyle(
-              color: BantTheme.secondary,
+            style: TextStyle(
+              color: colors.secondary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -818,8 +822,8 @@ class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
             const SizedBox(height: 12),
             Text(
               error!,
-              style: const TextStyle(
-                color: BantTheme.danger,
+              style: TextStyle(
+                color: colors.danger,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -847,6 +851,7 @@ class _OnboardingScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -862,8 +867,8 @@ class _OnboardingScaffold extends StatelessWidget {
                       const SizedBox(height: 30),
                       Text(
                         stepLabel,
-                        style: const TextStyle(
-                          color: BantTheme.blue,
+                        style: TextStyle(
+                          color: colors.blue,
                           fontSize: 11,
                           letterSpacing: 1.2,
                           fontWeight: FontWeight.w900,
@@ -872,8 +877,8 @@ class _OnboardingScaffold extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         title,
-                        style: const TextStyle(
-                          color: BantTheme.text,
+                        style: TextStyle(
+                          color: colors.text,
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
                         ),
@@ -881,8 +886,8 @@ class _OnboardingScaffold extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         subtitle,
-                        style: const TextStyle(
-                          color: BantTheme.secondary,
+                        style: TextStyle(
+                          color: colors.secondary,
                           fontSize: 14,
                         ),
                       ),
@@ -909,23 +914,24 @@ class _PendingInviteBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F4FF),
+        color: colors.soft,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.link_rounded, color: BantTheme.blue),
+          Icon(Icons.link_rounded, color: colors.blue),
           SizedBox(width: 10),
           Expanded(
             child: Text(
               'Your room invite is waiting. Finish setup and BANT will take you straight to the invited room.',
               style: TextStyle(
-                color: BantTheme.text,
+                color: colors.text,
                 fontWeight: FontWeight.w700,
                 height: 1.4,
               ),
@@ -1149,6 +1155,7 @@ class _RetryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -1164,7 +1171,7 @@ class _RetryScreen extends StatelessWidget {
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: BantTheme.danger),
+                    style: TextStyle(color: colors.danger),
                   ),
                   const SizedBox(height: 16),
                   BantButton(label: 'Try again', onPressed: onRetry),
