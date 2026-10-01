@@ -982,7 +982,9 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<void> leave() async {
     await voice.disconnect();
     await widget.api.leaveRoom(widget.room.id);
-    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   @override
