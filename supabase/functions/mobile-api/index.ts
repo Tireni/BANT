@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
 
             if (friendIds.length) {
               const actorName = actor?.display_name ?? actor?.username ?? "Your friend";
-              await sendPushToUsers(admin, friendIds, {
+              const pushResult = await sendPushToUsers(admin, friendIds, {
                 title: "A friend started a BANT room",
                 body: `${actorName} started “${title}”. Tap to join.`,
                 data: {
@@ -275,6 +275,11 @@ Deno.serve(async (req) => {
                   room_id: String(createdRoom.id)
                 }
               });
+              console.log("BANT_PUSH room_started", JSON.stringify({
+                roomId: String(createdRoom.id),
+                friendCount: friendIds.length,
+                ...pushResult
+              }));
             }
           } catch (pushError) {
             console.error("Room push notification failed", pushError);
@@ -584,7 +589,7 @@ Deno.serve(async (req) => {
             .eq("id", user.id)
             .maybeSingle();
           const actorName = actor?.display_name ?? actor?.username ?? "Someone";
-          await sendPushToUsers(admin, [receiverId], {
+          const pushResult = await sendPushToUsers(admin, [receiverId], {
             title: "New BANT friend request",
             body: `${actorName} sent you a friend request.`,
             data: {
@@ -592,6 +597,10 @@ Deno.serve(async (req) => {
               actor_id: user.id
             }
           });
+          console.log("BANT_PUSH friend_request", JSON.stringify({
+            receiverId,
+            ...pushResult
+          }));
         } catch (pushError) {
           console.error("Friend request push notification failed", pushError);
         }
@@ -620,7 +629,7 @@ Deno.serve(async (req) => {
               .eq("id", user.id)
               .maybeSingle();
             const actorName = actor?.display_name ?? actor?.username ?? "Your friend";
-            await sendPushToUsers(admin, [request.sender_id], {
+            const pushResult = await sendPushToUsers(admin, [request.sender_id], {
               title: "Friend request accepted",
               body: `${actorName} accepted your friend request.`,
               data: {
@@ -628,6 +637,10 @@ Deno.serve(async (req) => {
                 actor_id: user.id
               }
             });
+            console.log("BANT_PUSH friend_request_accepted", JSON.stringify({
+              receiverId: request.sender_id,
+              ...pushResult
+            }));
           } catch (pushError) {
             console.error("Friend acceptance push notification failed", pushError);
           }
