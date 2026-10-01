@@ -139,6 +139,9 @@ class BantPushService {
   }
 
   Future<void> registerCurrentDevice(MobileApi api) async {
+    if (!_initialized || !_available) {
+      await initialize();
+    }
     if (!_available) return;
 
     try {
