@@ -161,7 +161,7 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
                       reason: reason,
                       description: description.text,
                     );
-                    if (!mounted) return;
+                    if (!sheetContext.mounted || !mounted) return;
                     Navigator.of(sheetContext).pop();
                     ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(content: Text('Report submitted.')),
@@ -174,7 +174,7 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
                   secondary: true,
                   onPressed: () async {
                     final ok = await state.blockUser(person.id);
-                    if (!mounted || !ok) return;
+                    if (!sheetContext.mounted || !mounted || !ok) return;
                     Navigator.of(sheetContext).pop();
                     ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(content: Text('User blocked.')),
