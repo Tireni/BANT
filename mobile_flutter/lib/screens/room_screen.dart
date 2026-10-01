@@ -939,8 +939,8 @@ class _RoomIntro extends StatelessWidget {
               _Pill(
                 label: roleLabel,
                 color: currentRole == 'owner' || currentRole == 'host'
-                    ? const Color(0xFFB54708)
-                    : BantTheme.blue,
+                    ? colors.warning
+                    : colors.blue,
               ),
               if (room.noiseControlEnabled)
                 _Pill(
@@ -1023,10 +1023,10 @@ class _RoomIntro extends StatelessWidget {
                             : Icons.hourglass_top_rounded,
                 size: 16,
                 color: voiceStatus == BantVoiceStatus.connected
-                    ? BantTheme.mint
+                    ? colors.mint
                     : voiceStatus == BantVoiceStatus.error
-                        ? BantTheme.danger
-                        : BantTheme.secondary,
+                        ? colors.danger
+                        : colors.secondary,
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -1042,10 +1042,10 @@ class _RoomIntro extends StatelessWidget {
                                   : 'Live audio is not connected.',
                   style: TextStyle(
                     color: voiceStatus == BantVoiceStatus.connected
-                        ? BantTheme.mint
+                        ? colors.mint
                         : voiceStatus == BantVoiceStatus.error
-                            ? BantTheme.danger
-                            : BantTheme.secondary,
+                            ? colors.danger
+                            : colors.secondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1096,7 +1096,7 @@ class _RoomControls extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: colors.surface,
         border: Border(top: BorderSide(color: colors.border)),
       ),
@@ -1114,7 +1114,7 @@ class _RoomControls extends StatelessWidget {
                           ? Icons.mic_off_rounded
                           : Icons.mic_rounded,
                   size: 18,
-                  color: connected ? BantTheme.blue : BantTheme.secondary,
+                  color: connected ? colors.blue : colors.secondary,
                 ),
                 label: Text(
                   connecting
@@ -1155,7 +1155,7 @@ class _RoomControls extends StatelessWidget {
               child: FilledButton(
                 onPressed: leaving ? null : onLeaveOrEnd,
                 style: FilledButton.styleFrom(
-                  backgroundColor: BantTheme.danger,
+                  backgroundColor: colors.danger,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
                 child: Text(
@@ -1193,7 +1193,7 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: mine ? BantTheme.blue : const Color(0xFFEFF4F8),
+          color: mine ? colors.blue : colors.soft,
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(
@@ -1202,7 +1202,7 @@ class _MessageBubble extends StatelessWidget {
             Text(
               mine ? 'You' : item['sender_name']?.toString() ?? 'BANT user',
               style: TextStyle(
-                color: mine ? Colors.white : BantTheme.blue,
+                color: mine ? Colors.white : colors.blue,
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
               ),
@@ -1211,7 +1211,7 @@ class _MessageBubble extends StatelessWidget {
             Text(
               item['body']?.toString() ?? '',
               style: TextStyle(
-                color: mine ? Colors.white : BantTheme.text,
+                color: mine ? Colors.white : colors.text,
                 fontSize: 13,
                 height: 1.35,
               ),
