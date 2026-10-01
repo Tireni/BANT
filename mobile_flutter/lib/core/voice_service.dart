@@ -277,7 +277,7 @@ class VoiceService extends ChangeNotifier {
     for (final participant in room.remoteParticipants.values) {
       if (participant.identity.isEmpty) continue;
       connected.add(participant.identity);
-      if (participant.isMuted) {
+      if (participant.hasAudio && participant.isMuted) {
         mutedIds.add(participant.identity);
       }
     }
