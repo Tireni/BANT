@@ -12,7 +12,6 @@ import 'models/profile.dart';
 import 'models/room.dart';
 import 'screens/create_room_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/invite_join_screen.dart';
 import 'screens/pending_invite_gate.dart';
 import 'screens/room_screen.dart';
 import 'screens/rooms_screen.dart';
