@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../ui/bant_theme.dart';
+import 'bant_theme.dart';
 
 class RoomModerationPanel extends StatelessWidget {
   final bool selectionMode;
@@ -32,11 +32,13 @@ class RoomModerationPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: BantTheme.surface,
-        border: Border.all(color: BantTheme.border),
+        color: colors.surface,
+        border: Border.all(color: colors.border),
         borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
@@ -44,13 +46,13 @@ class RoomModerationPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   'OWNER MODERATION',
                   style: TextStyle(
-                    color: BantTheme.text,
+                    color: colors.text,
                     fontSize: 12,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
                   ),
                 ),
@@ -72,8 +74,8 @@ class RoomModerationPanel extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               '$selectedCount selected',
-              style: const TextStyle(
-                color: BantTheme.secondary,
+              style: TextStyle(
+                color: colors.secondary,
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
               ),
@@ -130,10 +132,10 @@ class RoomModerationPanel extends StatelessWidget {
           ),
           if (noiseControlEnabled) ...[
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Noise Control sends a warning only. It never mutes anyone.',
               style: TextStyle(
-                color: BantTheme.secondary,
+                color: colors.secondary,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -155,27 +157,29 @@ class NoiseWarningToast extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+
     return IgnorePointer(
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           decoration: BoxDecoration(
-            color: BantTheme.surface,
-            border: Border.all(color: const Color(0xFFF79009)),
+            color: colors.surface,
+            border: Border.all(color: colors.warning),
             borderRadius: BorderRadius.circular(999),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
                 blurRadius: 14,
-                offset: Offset(0, 6),
-                color: Color(0x26000000),
+                offset: const Offset(0, 6),
+                color: Colors.black.withValues(alpha: 0.15),
               ),
             ],
           ),
           child: Text(
             '🤫 $message',
-            style: const TextStyle(
-              color: BantTheme.text,
-              fontWeight: FontWeight.w900,
+            style: TextStyle(
+              color: colors.text,
+              fontWeight: FontWeight.w800,
               fontSize: 13,
             ),
           ),
