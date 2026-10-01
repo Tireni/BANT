@@ -11,6 +11,7 @@ import '../ui/bant_button.dart';
 import '../ui/bant_participant_grid.dart';
 import '../ui/bant_theme.dart';
 import '../ui/room_moderation_panel.dart';
+import 'room_invite_sheet.dart';
 
 class BantRoomScreen extends StatefulWidget {
   final MobileApi api;
@@ -826,11 +827,18 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                             onSpeaker: voice.toggleSpeaker,
                             onLeaveOrEnd: _leaveOrEnd,
                             onInvite: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Invitations will be enabled in the invitations batch.',
+                              showModalBottomSheet<void>(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: BantTheme.surface,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(24),
                                   ),
+                                ),
+                                builder: (_) => RoomInviteSheet(
+                                  api: widget.api,
+                                  room: widget.room,
                                 ),
                               );
                             },
