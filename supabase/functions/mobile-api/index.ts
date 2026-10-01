@@ -418,6 +418,23 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "test_push_self": {
+        try {
+          const result = await sendPushToUsers(admin, [user.id], {
+            title: "BANT push test",
+            body: "Firebase notifications are connected.",
+            data: { type: "friend_request", actor_id: user.id }
+          });
+          return json({ ok: true, push: result });
+        } catch (error) {
+          console.error("BANT push diagnostic failed", error);
+          return json({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error)
+          }, 500);
+        }
+      }
+
       case "register_push_token": {
         const token = requireString(body.token, "token").trim();
         const platform = body.platform === "ios"
@@ -715,7 +732,12 @@ async function sendPushToUsers(
   const rawPrivateKey = Deno.env.get("FIREBASE_PRIVATE_KEY");
 
   if (!projectId || !clientEmail || !rawPrivateKey || !userIds.length) {
-    return;
+    return {
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      reason: "firebase_secrets_missing"
+    };
   }
 
   const { data: tokenRows, error: tokenError } = await admin
@@ -729,7 +751,14 @@ async function sendPushToUsers(
     .map((row: any) => row.token)
     .filter((token: unknown) => typeof token === "string" && token.length > 0))];
 
-  if (!tokens.length) return;
+  if (!tokens.length) {
+    return {
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      reason: "no_registered_tokens"
+    };
+  }
 
   const auth = new GoogleAuth({
     credentials: {
@@ -749,7 +778,11 @@ async function sendPushToUsers(
     throw new Error("Unable to authorize Firebase Cloud Messaging");
   }
 
-  await Promise.allSettled(tokens.map(async (token) => {
+  let sent = 0;
+  let failed = 0;
+  const failures: Array<{ status: number; body: string }> = [];
+
+  await Promise.all(tokens.map(async (token) => {
     const response = await fetch(
       `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
       {
@@ -786,18 +819,30 @@ async function sendPushToUsers(
       }
     );
 
-    if (!response.ok) {
-      const responseBody = await response.text();
-      console.error("FCM send failed", response.status, responseBody);
+    if (response.ok) {
+      sent += 1;
+      return;
+    }
 
-      if (response.status === 404 || responseBody.includes("UNREGISTERED")) {
-        await admin
-          .from("device_push_tokens")
-          .delete()
-          .eq("token", token);
-      }
+    failed += 1;
+    const responseBody = await response.text();
+    failures.push({ status: response.status, body: responseBody });
+    console.error("FCM send failed", response.status, responseBody);
+
+    if (response.status === 404 || responseBody.includes("UNREGISTERED")) {
+      await admin
+        .from("device_push_tokens")
+        .delete()
+        .eq("token", token);
     }
   }));
+
+  return {
+    attempted: tokens.length,
+    sent,
+    failed,
+    failures
+  };
 }
 
 async function rpcBoolean(client: any, fn: string, args: Record<string, unknown>) {
