@@ -7,6 +7,7 @@ import 'core/mobile_api.dart';
 import 'core/voice_service.dart';
 import 'models/profile.dart';
 import 'models/room.dart';
+import 'screens/create_room_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/rooms_screen.dart';
 import 'state/bant_app_state.dart';
@@ -777,11 +778,23 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  void startRoom() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Create Room is the next Android batch. Feed and Rooms are ready for testing first.',
+  Future<void> startRoom() async {
+    final created = await Navigator.of(context).push<BantRoom>(
+      MaterialPageRoute(
+        builder: (_) => CreateRoomScreen(
+          api: widget.api,
+          onCreatedRefresh: appState.refreshRooms,
+        ),
+      ),
+    );
+
+    if (created == null || !mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoomScreen(
+          api: widget.api,
+          room: created,
         ),
       ),
     );
