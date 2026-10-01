@@ -7,11 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/auth_service.dart';
 import 'core/config.dart';
 import 'core/mobile_api.dart';
+import 'core/pending_invite_store.dart';
 import 'models/profile.dart';
 import 'models/room.dart';
 import 'screens/create_room_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/invite_join_screen.dart';
+import 'screens/pending_invite_gate.dart';
 import 'screens/room_screen.dart';
 import 'screens/rooms_screen.dart';
 import 'state/bant_app_state.dart';
@@ -59,7 +61,11 @@ class _AuthGateState extends State<AuthGate> {
   late final AuthService auth;
   late final MobileApi api;
   late final Stream<AuthState> authChanges;
+  late final PendingInviteStore pendingInviteStore;
+  late final AppLinks appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
   BantProfile? profile;
+  String? pendingInviteToken;
   bool loading = true;
   String? error;
 
@@ -68,9 +74,68 @@ class _AuthGateState extends State<AuthGate> {
     super.initState();
     auth = AuthService(Supabase.instance.client);
     api = MobileApi(Supabase.instance.client);
+    pendingInviteStore = PendingInviteStore();
+    appLinks = AppLinks();
     authChanges = auth.changes;
     authChanges.listen((_) => bootstrap());
+    _startInviteLinks();
     bootstrap();
+  }
+
+  Future<void> _startInviteLinks() async {
+    try {
+      final stored = await pendingInviteStore.read();
+      if (mounted && stored != null) {
+        setState(() => pendingInviteToken = stored);
+      }
+    } catch (_) {}
+
+    try {
+      final initial = await appLinks.getInitialLink();
+      if (initial != null) {
+        await _captureInviteUri(initial);
+      }
+    } catch (_) {}
+
+    _linkSubscription = appLinks.uriLinkStream.listen(
+      (uri) {
+        _captureInviteUri(uri);
+      },
+      onError: (_) {},
+    );
+  }
+
+  String? _inviteTokenFromUri(Uri uri) {
+    if (uri.scheme == 'bant' && uri.host == 'invite') {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
+    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host == 'bant-demo.vercel.app' &&
+        uri.pathSegments.length >= 2 &&
+        uri.pathSegments.first == 'r') {
+      return uri.pathSegments[1];
+    }
+    return null;
+  }
+
+  Future<void> _captureInviteUri(Uri uri) async {
+    final token = _inviteTokenFromUri(uri);
+    if (token == null || token.isEmpty) return;
+    await pendingInviteStore.save(token);
+    if (!mounted) return;
+    setState(() => pendingInviteToken = token);
+  }
+
+  Future<void> _clearPendingInvite() async {
+    await pendingInviteStore.clear();
+    if (!mounted) return;
+    setState(() => pendingInviteToken = null);
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> bootstrap() async {
@@ -116,7 +181,10 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     if (auth.session == null) {
-      return SignInScreen(auth: auth);
+      return SignInScreen(
+        auth: auth,
+        pendingInviteToken: pendingInviteToken,
+      );
     }
 
     if (error != null) {
@@ -141,6 +209,16 @@ class _AuthGateState extends State<AuthGate> {
         api: api,
         profile: current,
         onComplete: bootstrap,
+        pendingInviteToken: pendingInviteToken,
+      );
+    }
+
+    final inviteToken = pendingInviteToken;
+    if (inviteToken != null && inviteToken.isNotEmpty) {
+      return PendingInviteGate(
+        api: api,
+        token: inviteToken,
+        onFinished: _clearPendingInvite,
       );
     }
 
@@ -150,7 +228,13 @@ class _AuthGateState extends State<AuthGate> {
 
 class SignInScreen extends StatefulWidget {
   final AuthService auth;
-  const SignInScreen({super.key, required this.auth});
+  final String? pendingInviteToken;
+
+  const SignInScreen({
+    super.key,
+    required this.auth,
+    this.pendingInviteToken,
+  });
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
@@ -209,6 +293,33 @@ class _SignInScreenState extends State<SignInScreen> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (widget.pendingInviteToken != null) ...[
+                  const SizedBox(height: 22),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F4FF),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.link_rounded, color: BantTheme.blue),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Your room invite is saved. Continue with Google and BANT will return you to that exact room after sign-in and onboarding.',
+                            style: TextStyle(
+                              color: BantTheme.text,
+                              fontWeight: FontWeight.w700,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 BantButton(
                   label: 'Continue with Google',
@@ -247,12 +358,14 @@ class OnboardingFlow extends StatefulWidget {
   final MobileApi api;
   final BantProfile profile;
   final Future<void> Function() onComplete;
+  final String? pendingInviteToken;
 
   const OnboardingFlow({
     super.key,
     required this.api,
     required this.profile,
     required this.onComplete,
+    this.pendingInviteToken,
   });
 
   @override
@@ -279,11 +392,16 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   @override
   Widget build(BuildContext context) {
+    final inviteNotice = widget.pendingInviteToken == null
+        ? null
+        : const _PendingInviteBanner();
+
     if (step <= 1) {
       return ProfileOnboardingScreen(
         api: widget.api,
         profile: profile,
         onSaved: updateProfile,
+        banner: inviteNotice,
       );
     }
     if (step == 2) {
@@ -291,6 +409,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         api: widget.api,
         onBack: () => setState(() => step = 1),
         onSaved: updateProfile,
+        banner: inviteNotice,
       );
     }
     return CompleteOnboardingScreen(
@@ -298,6 +417,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       api: widget.api,
       onBack: () => setState(() => step = 2),
       onComplete: widget.onComplete,
+      banner: inviteNotice,
     );
   }
 }
@@ -306,12 +426,14 @@ class ProfileOnboardingScreen extends StatefulWidget {
   final MobileApi api;
   final BantProfile profile;
   final ValueChanged<BantProfile> onSaved;
+  final Widget? banner;
 
   const ProfileOnboardingScreen({
     super.key,
     required this.api,
     required this.profile,
     required this.onSaved,
+    this.banner,
   });
 
   @override
@@ -377,6 +499,10 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
       ),
       child: Column(
         children: [
+          if (widget.banner != null) ...[
+            widget.banner!,
+            const SizedBox(height: 18),
+          ],
           const CircleAvatar(
             radius: 42,
             backgroundColor: Color(0xFFE8F4FF),
@@ -424,12 +550,14 @@ class InterestsOnboardingScreen extends StatefulWidget {
   final MobileApi api;
   final VoidCallback onBack;
   final ValueChanged<BantProfile> onSaved;
+  final Widget? banner;
 
   const InterestsOnboardingScreen({
     super.key,
     required this.api,
     required this.onBack,
     required this.onSaved,
+    this.banner,
   });
 
   @override
@@ -517,6 +645,10 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.banner != null) ...[
+                  widget.banner!,
+                  const SizedBox(height: 18),
+                ],
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
@@ -571,6 +703,7 @@ class CompleteOnboardingScreen extends StatefulWidget {
   final MobileApi api;
   final VoidCallback onBack;
   final Future<void> Function() onComplete;
+  final Widget? banner;
 
   const CompleteOnboardingScreen({
     super.key,
@@ -578,6 +711,7 @@ class CompleteOnboardingScreen extends StatefulWidget {
     required this.api,
     required this.onBack,
     required this.onComplete,
+    this.banner,
   });
 
   @override
@@ -630,6 +764,10 @@ class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
       ),
       child: Column(
         children: [
+          if (widget.banner != null) ...[
+            widget.banner!,
+            const SizedBox(height: 18),
+          ],
           const Icon(Icons.check_circle, color: BantTheme.mint, size: 52),
           const SizedBox(height: 12),
           const Text(
@@ -738,6 +876,39 @@ class _OnboardingScaffold extends StatelessWidget {
   }
 }
 
+class _PendingInviteBanner extends StatelessWidget {
+  const _PendingInviteBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F4FF),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.link_rounded, color: BantTheme.blue),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Your room invite is waiting. Finish setup and BANT will take you straight to the invited room.',
+              style: TextStyle(
+                color: BantTheme.text,
+                fontWeight: FontWeight.w700,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class HomeShell extends StatefulWidget {
   final AuthService auth;
   final MobileApi api;
@@ -757,71 +928,16 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
   late final BantAppState appState;
-  late final AppLinks appLinks;
-  StreamSubscription<Uri>? _linkSubscription;
-  String? _lastInviteToken;
 
   @override
   void initState() {
     super.initState();
     appState = BantAppState(widget.api);
     appState.load();
-    appLinks = AppLinks();
-    _startInviteLinks();
-  }
-
-  Future<void> _startInviteLinks() async {
-    try {
-      final initial = await appLinks.getInitialLink();
-      if (initial != null) {
-        _handleInviteUri(initial);
-      }
-    } catch (_) {}
-
-    _linkSubscription = appLinks.uriLinkStream.listen(
-      _handleInviteUri,
-      onError: (_) {},
-    );
-  }
-
-  String? _inviteTokenFromUri(Uri uri) {
-    if (uri.scheme == 'bant' && uri.host == 'invite') {
-      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
-    }
-    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
-        uri.host == 'bant-demo.vercel.app' &&
-        uri.pathSegments.length >= 2 &&
-        uri.pathSegments.first == 'r') {
-      return uri.pathSegments[1];
-    }
-    return null;
-  }
-
-  Future<void> _handleInviteUri(Uri uri) async {
-    final token = _inviteTokenFromUri(uri);
-    if (token == null || token.isEmpty || token == _lastInviteToken) return;
-    _lastInviteToken = token;
-
-    if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      final room = await Navigator.of(context).push<BantRoom>(
-        MaterialPageRoute(
-          builder: (_) => InviteJoinScreen(
-            api: widget.api,
-            token: token,
-          ),
-        ),
-      );
-      if (!mounted || room == null) return;
-      await appState.refreshRooms();
-      openRoom(room);
-    });
   }
 
   @override
   void dispose() {
-    _linkSubscription?.cancel();
     appState.dispose();
     super.dispose();
   }
