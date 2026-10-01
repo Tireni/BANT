@@ -21,7 +21,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: BantConfig.supabaseUrl,
-    anonKey: BantConfig.supabaseAnonKey,
+    publishableKey: BantConfig.supabaseAnonKey,
   );
 
   runApp(const BantMobileApp());
@@ -525,7 +525,9 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
                           final slug = interest['slug']?.toString();
                           if (slug == null) return;
                           setState(() {
-                            if (!selected.add(slug)) selected.remove(slug);
+                            if (!selected.add(slug)) {
+                              selected.remove(slug);
+                            }
                           });
                         },
                       ),
