@@ -12,6 +12,68 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
 Write-Host "Creating/verifying the Android platform shell..."
 flutter create --platforms=android --org com.bant.app --project-name bant_mobile .
 
+
+$settingsGradle = "android/settings.gradle.kts"
+if (Test-Path $settingsGradle) {
+  $settingsText = Get-Content $settingsGradle -Raw
+  if ($settingsText -notmatch 'com.google.gms.google-services') {
+    $settingsText = $settingsText -replace 'plugins \{', @'
+plugins {
+    id("com.google.gms.google-services") version "4.5.0" apply false
+'@
+    Set-Content -Path $settingsGradle -Value $settingsText -Encoding UTF8
+  }
+}
+
+$appGradle = "android/app/build.gradle.kts"
+if (Test-Path $appGradle) {
+  $appText = Get-Content $appGradle -Raw
+
+  if ($appText -notmatch 'id\("com.google.gms.google-services"\)') {
+    $appText = $appText -replace 'plugins \{', @'
+plugins {
+    id("com.google.gms.google-services")
+'@
+  }
+
+  if ($appText -notmatch 'isCoreLibraryDesugaringEnabled\s*=\s*true') {
+    if ($appText -match 'compileOptions\s*\{') {
+      $appText = $appText -replace 'compileOptions\s*\{', @'
+compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+'@
+    } else {
+      $appText = $appText -replace 'android \{', @'
+android {
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+'@
+    }
+  }
+
+  if ($appText -notmatch 'desugar_jdk_libs') {
+    if ($appText -match 'dependencies\s*\{') {
+      $appText = $appText -replace 'dependencies\s*\{', @'
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+'@
+    } else {
+      $appText += @'
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+'@
+    }
+  }
+
+  Set-Content -Path $appGradle -Value $appText -Encoding UTF8
+}
+
+
 $manifest = "android/app/src/main/AndroidManifest.xml"
 if (-not (Test-Path $manifest)) {
   throw "AndroidManifest.xml was not generated."
