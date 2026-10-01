@@ -5,6 +5,7 @@ import '../core/mobile_api.dart';
 import '../core/voice_service.dart';
 import '../models/room.dart';
 import '../models/room_detail.dart';
+import '../state/room_chat_controller.dart';
 import '../ui/bant_button.dart';
 import '../ui/bant_participant_grid.dart';
 import '../ui/bant_theme.dart';
@@ -28,14 +29,14 @@ class BantRoomScreen extends StatefulWidget {
 class _BantRoomScreenState extends State<BantRoomScreen> {
   final message = TextEditingController();
   late final VoiceService voice;
+  late final RoomChatController chat;
 
   BantRoomDetail? detail;
-  List<Map<String, dynamic>> messages = const [];
   bool loading = true;
   bool joining = false;
-  bool sending = false;
   bool leaving = false;
   String? error;
+  String? roomActivity;
   dynamic _membersChannel;
   dynamic _roomChannel;
 
@@ -58,11 +59,24 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
     super.initState();
     voice = VoiceService(Supabase.instance.client);
     voice.addListener(_onVoiceChanged);
+    chat = RoomChatController(
+      api: widget.api,
+      supabase: Supabase.instance.client,
+      roomId: widget.room.id,
+      currentUserId: currentUserId,
+    );
+    chat.addListener(_onChatChanged);
     _subscribeRealtime();
     _openRoom();
   }
 
   void _onVoiceChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onChatChanged() {
     if (mounted) {
       setState(() {});
     }
@@ -79,6 +93,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
     }
     voice.removeListener(_onVoiceChanged);
     voice.dispose();
+    chat.removeListener(_onChatChanged);
+    chat.dispose();
     message.dispose();
     super.dispose();
   }
@@ -97,8 +113,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
             column: 'room_id',
             value: widget.room.id,
           ),
-          callback: (_) {
-            _refresh();
+          callback: (payload) {
+            _handleMemberRealtime(payload);
           },
         )
         .subscribe();
@@ -134,6 +150,73 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
         .subscribe();
   }
 
+  Future<void> _handleMemberRealtime(PostgresChangePayload payload) async {
+    final record = payload.newRecord.isNotEmpty
+        ? payload.newRecord
+        : payload.oldRecord;
+    final userId = record['user_id']?.toString() ?? '';
+
+    String name = 'Someone';
+    if (userId.isNotEmpty) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('display_name,username')
+            .eq('id', userId)
+            .maybeSingle();
+        if (profile != null) {
+          name = (profile['display_name'] ??
+                  profile['username'] ??
+                  'Someone')
+              .toString();
+        }
+      } catch (_) {}
+    }
+
+    String? activity;
+    if (payload.eventType == PostgresChangeEvent.insert) {
+      activity = userId == currentUserId ? 'You joined the room.' : '$name joined the room.';
+    } else if (payload.eventType == PostgresChangeEvent.update) {
+      final leftAt = payload.newRecord['left_at'];
+      final role = payload.newRecord['role']?.toString();
+      if (leftAt != null) {
+        activity = userId == currentUserId ? 'You left the room.' : '$name left the room.';
+      } else if (role != null) {
+        activity = userId == currentUserId
+            ? 'Your role changed to $role.'
+            : '$name is now a $role.';
+      }
+    }
+
+    await _refreshRoomOnly();
+
+    if (!mounted || activity == null) return;
+    setState(() => roomActivity = activity);
+    Future<void>.delayed(const Duration(seconds: 4), () {
+      if (mounted && roomActivity == activity) {
+        setState(() => roomActivity = null);
+      }
+    });
+  }
+
+  Future<void> _refreshRoomOnly() async {
+    try {
+      final room = BantRoomDetail.fromJson(
+        await widget.api.room(widget.room.id),
+      );
+      if (!mounted) return;
+      setState(() {
+        detail = room;
+        error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
   Future<void> _openRoom() async {
     setState(() {
       loading = true;
@@ -157,23 +240,24 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
         );
       }
 
-      final roomMessages = await widget.api.messages(widget.room.id);
       final membership = room.participantFor(currentUserId);
       final role = membership?.role ?? 'speaker';
 
       if (!mounted) return;
       setState(() {
         detail = room;
-        messages = roomMessages;
         loading = false;
         joining = false;
       });
 
-      await voice.connect(
-        widget.room.id,
-        publishMicrophone: role != 'listener',
-        startMuted: membership?.muted ?? false,
-      );
+      await Future.wait([
+        chat.start(),
+        voice.connect(
+          widget.room.id,
+          publishMicrophone: role != 'listener',
+          startMuted: membership?.muted ?? false,
+        ),
+      ]);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -189,13 +273,12 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
       final room = BantRoomDetail.fromJson(
         await widget.api.room(widget.room.id),
       );
-      final roomMessages = await widget.api.messages(widget.room.id);
       if (!mounted) return;
       setState(() {
         detail = room;
-        messages = roomMessages;
         error = null;
       });
+      await chat.reload();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -241,22 +324,19 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
 
   Future<void> _sendMessage() async {
     final body = message.text.trim();
-    if (body.isEmpty || sending) return;
+    if (body.isEmpty) {
+      setState(() => error = 'Type a message first.');
+      return;
+    }
 
-    setState(() => sending = true);
-    try {
-      await widget.api.sendMessage(widget.room.id, body);
+    final sent = await chat.send(body);
+    if (sent) {
       message.clear();
-      final roomMessages = await widget.api.messages(widget.room.id);
-      if (!mounted) return;
-      setState(() => messages = roomMessages);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    } finally {
-      if (mounted) setState(() => sending = false);
+      if (mounted) {
+        setState(() => error = null);
+      }
+    } else if (chat.error != null && mounted) {
+      setState(() => error = chat.error);
     }
   }
 
@@ -401,6 +481,39 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                   116,
                                 ),
                                 children: [
+                                  if (roomActivity != null) ...[
+                                    Container(
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 9,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE8F4FF),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.bolt_rounded,
+                                            size: 16,
+                                            color: BantTheme.blue,
+                                          ),
+                                          const SizedBox(width: 7),
+                                          Expanded(
+                                            child: Text(
+                                              roomActivity!,
+                                              style: const TextStyle(
+                                                color: BantTheme.blue,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                   _RoomIntro(
                                     room: room,
                                     currentRole:
@@ -449,7 +562,32 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
                                       children: [
-                                        if (messages.isEmpty)
+                                        if (chat.loading)
+                                          const Padding(
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                  ),
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Loading messages...',
+                                                  style: TextStyle(
+                                                    color: BantTheme.secondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else if (chat.messages.isEmpty)
                                           const Padding(
                                             padding: EdgeInsets.symmetric(
                                               vertical: 10,
@@ -462,14 +600,39 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                             ),
                                           )
                                         else
-                                          for (final item
-                                              in messages.reversed.take(8).toList().reversed)
+                                          for (final item in chat.messages
+                                              .reversed
+                                              .take(12)
+                                              .toList()
+                                              .reversed)
                                             _MessageBubble(
                                               item: item,
                                               mine: item['sender_id']
                                                       ?.toString() ==
                                                   currentUserId,
                                             ),
+                                        if (chat.error != null) ...[
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  chat.error!,
+                                                  style: const TextStyle(
+                                                    color: BantTheme.danger,
+                                                    fontSize: 12,
+                                                    fontWeight:
+                                                        FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed: chat.reload,
+                                                child: const Text('Retry'),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                         const SizedBox(height: 10),
                                         Row(
                                           crossAxisAlignment:
@@ -494,7 +657,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                               width: 52,
                                               height: 52,
                                               child: FilledButton(
-                                                onPressed: sending
+                                                onPressed: chat.sending
                                                     ? null
                                                     : _sendMessage,
                                                 style: FilledButton.styleFrom(
@@ -506,7 +669,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                                             16),
                                                   ),
                                                 ),
-                                                child: sending
+                                                child: chat.sending
                                                     ? const SizedBox(
                                                         width: 20,
                                                         height: 20,
