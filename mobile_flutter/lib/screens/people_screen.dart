@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/mobile_api.dart';
 import '../state/bant_social_state.dart';
+import '../ui/bant_button.dart';
 import '../ui/bant_theme.dart';
 
 class BantPeopleScreen extends StatefulWidget {
@@ -21,6 +22,8 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
   late final BantSocialState state;
   final search = TextEditingController();
   String tab = 'Discover';
+  List<Map<String, dynamic>> notifications = const [];
+  bool notificationsLoading = false;
 
   @override
   void initState() {
@@ -32,10 +35,30 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
     );
     state.addListener(_onChanged);
     state.start();
+    _loadNotifications();
   }
 
   void _onChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() => notificationsLoading = true);
+    try {
+      final items = await widget.api.notifications();
+      if (!mounted) return;
+      setState(() {
+        notifications = items;
+        notificationsLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => notificationsLoading = false);
+    }
+  }
+
+  Future<void> _markRead() async {
+    await widget.api.markNotificationsRead();
+    await _loadNotifications();
   }
 
   @override
@@ -52,9 +75,8 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
     Iterable<BantSocialPerson> source = state.people;
     if (tab == 'Friends') {
       source = source.where((person) => state.friendIds.contains(person.id));
-    } else if (tab == 'Requests') {
-      final incomingIds = state.incoming.map((item) => item.senderId).toSet();
-      source = source.where((person) => incomingIds.contains(person.id));
+    } else if (tab == 'Blocked') {
+      source = state.blockedPeople;
     }
 
     if (query.isNotEmpty) {
@@ -68,12 +90,116 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
     return source.toList();
   }
 
+  Future<void> _openSafety(BantSocialPerson person) async {
+    final description = TextEditingController();
+    String reason = 'unsafe';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: BantTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              20 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Safety options for ${person.displayName}',
+                  style: const TextStyle(
+                    color: BantTheme.text,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final item in const [
+                      'spam',
+                      'harassment',
+                      'unsafe',
+                      'impersonation',
+                      'other',
+                    ])
+                      ChoiceChip(
+                        label: Text(item),
+                        selected: reason == item,
+                        onSelected: (_) => setSheetState(() => reason = item),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: description,
+                  minLines: 3,
+                  maxLines: 5,
+                  maxLength: 1200,
+                  decoration: const InputDecoration(
+                    hintText: 'Optional report details',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                BantButton(
+                  label: 'Report user',
+                  onPressed: () async {
+                    await widget.api.reportUser(
+                      userId: person.id,
+                      reason: reason,
+                      description: description.text,
+                    );
+                    if (!mounted) return;
+                    Navigator.of(sheetContext).pop();
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Report submitted.')),
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                BantButton(
+                  label: 'Block user',
+                  secondary: true,
+                  onPressed: () async {
+                    final ok = await state.blockUser(person.id);
+                    if (!mounted || !ok) return;
+                    Navigator.of(sheetContext).pop();
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('User blocked.')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    description.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final people = visiblePeople;
 
     return RefreshIndicator(
-      onRefresh: state.load,
+      onRefresh: () async {
+        await state.load();
+        await _loadNotifications();
+      },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
@@ -87,82 +213,72 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          TextField(
-            controller: search,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search_rounded),
-              hintText: 'Search people',
+          if (tab != 'Notifications')
+            TextField(
+              controller: search,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search_rounded),
+                hintText: 'Search people',
+              ),
             ),
-          ),
           const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF2F4F7),
-              borderRadius: BorderRadius.circular(16),
-            ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                for (final item in const ['Discover', 'Friends', 'Requests'])
-                  Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => setState(() => tab = item),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 140),
-                        constraints: const BoxConstraints(minHeight: 42),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: tab == item ? BantTheme.blue : null,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          item,
-                          style: TextStyle(
-                            color: tab == item
-                                ? Colors.white
-                                : BantTheme.secondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
+                for (final item in const [
+                  'Discover',
+                  'Friends',
+                  'Blocked',
+                  'Notifications',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(item),
+                      selected: tab == item,
+                      selectedColor: BantTheme.blue,
+                      labelStyle: TextStyle(
+                        color: tab == item ? Colors.white : BantTheme.secondary,
+                        fontWeight: FontWeight.w900,
                       ),
+                      onSelected: (_) async {
+                        setState(() => tab = item);
+                        if (item == 'Notifications') {
+                          await _markRead();
+                        }
+                      },
                     ),
                   ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          if (state.loading && state.people.isEmpty)
+          if (tab == 'Notifications')
+            _NotificationsList(
+              loading: notificationsLoading,
+              items: notifications,
+            )
+          else if (state.loading && state.people.isEmpty && tab != 'Blocked')
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 50),
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (state.error != null && state.people.isEmpty)
-            _StateMessage(
-              icon: Icons.error_outline_rounded,
-              title: 'Unable to load people',
-              body: state.error!,
-              action: TextButton(
-                onPressed: state.load,
-                child: const Text('Try again'),
-              ),
-            )
           else if (people.isEmpty)
             _StateMessage(
-              icon: tab == 'Requests'
-                  ? Icons.mark_email_unread_outlined
+              icon: tab == 'Blocked'
+                  ? Icons.block_rounded
                   : Icons.people_outline_rounded,
               title: tab == 'Friends'
                   ? 'No friends yet.'
-                  : tab == 'Requests'
-                      ? 'No incoming requests.'
+                  : tab == 'Blocked'
+                      ? 'No blocked users.'
                       : 'Find people you vibe with.',
               body: tab == 'Friends'
                   ? 'Add people from Discover and they will appear here after they accept.'
-                  : tab == 'Requests'
-                      ? 'Incoming friend requests will appear here.'
+                  : tab == 'Blocked'
+                      ? 'People you block will appear here.'
                       : 'Add friends and jump into rooms together.',
             )
           else
@@ -170,13 +286,19 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
               _PersonRow(
                 person: person,
                 state: state,
-                onPrimary: () => state.primaryAction(person.id),
-                onDecline: state.stateFor(person.id) ==
-                        BantFriendshipState.pendingReceived
+                blocked: tab == 'Blocked',
+                onPrimary: tab == 'Blocked'
+                    ? () => state.unblockUser(person.id)
+                    : () => state.primaryAction(person.id),
+                onSafety:
+                    tab == 'Blocked' ? null : () => _openSafety(person),
+                onDecline: tab != 'Blocked' &&
+                        state.stateFor(person.id) ==
+                            BantFriendshipState.pendingReceived
                     ? () => state.declineIncoming(person.id)
                     : null,
               ),
-          if (state.error != null && state.people.isNotEmpty) ...[
+          if (state.error != null) ...[
             const SizedBox(height: 12),
             Text(
               state.error!,
@@ -192,30 +314,96 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
   }
 }
 
+class _NotificationsList extends StatelessWidget {
+  final bool loading;
+  final List<Map<String, dynamic>> items;
+
+  const _NotificationsList({
+    required this.loading,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 50),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (items.isEmpty) {
+      return const _StateMessage(
+        icon: Icons.notifications_none_rounded,
+        title: "You're all caught up.",
+        body: 'Friend requests and room activity will show here.',
+      );
+    }
+
+    return Column(
+      children: [
+        for (final item in items)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: BantTheme.surface,
+              border: Border.all(color: BantTheme.border),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['body']?.toString() ?? 'BANT notification',
+                  style: const TextStyle(
+                    color: BantTheme.text,
+                    fontWeight: FontWeight.w800,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item['created_at']?.toString() ?? '',
+                  style: const TextStyle(
+                    color: BantTheme.secondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _PersonRow extends StatelessWidget {
   final BantSocialPerson person;
   final BantSocialState state;
+  final bool blocked;
   final VoidCallback onPrimary;
   final VoidCallback? onDecline;
+  final VoidCallback? onSafety;
 
   const _PersonRow({
     required this.person,
     required this.state,
+    required this.blocked,
     required this.onPrimary,
     required this.onDecline,
+    required this.onSafety,
   });
 
   @override
   Widget build(BuildContext context) {
     final friendship = state.stateFor(person.id);
-    final disabled = friendship == BantFriendshipState.friends;
+    final disabled = !blocked && friendship == BantFriendshipState.friends;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: BantTheme.border),
-        ),
+        border: Border(bottom: BorderSide(color: BantTheme.border)),
       ),
       child: Row(
         children: [
@@ -251,7 +439,6 @@ class _PersonRow extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
                   '@${person.username}',
                   style: const TextStyle(
@@ -259,31 +446,22 @@ class _PersonRow extends StatelessWidget {
                     fontSize: 12,
                   ),
                 ),
-                if (person.bio.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    person.bio,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: BantTheme.secondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
-          if (onDecline != null) ...[
-            TextButton(
-              onPressed: onDecline,
-              child: const Text('Decline'),
+          if (onDecline != null)
+            TextButton(onPressed: onDecline, child: const Text('Decline')),
+          if (onSafety != null)
+            IconButton(
+              onPressed: onSafety,
+              icon: const Icon(
+                Icons.shield_outlined,
+                color: BantTheme.danger,
+              ),
             ),
-            const SizedBox(width: 4),
-          ],
           FilledButton.tonal(
             onPressed: disabled ? null : onPrimary,
-            child: Text(state.actionLabel(person.id)),
+            child: Text(blocked ? 'Unblock' : state.actionLabel(person.id)),
           ),
         ],
       ),
@@ -295,13 +473,11 @@ class _StateMessage extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
-  final Widget? action;
 
   const _StateMessage({
     required this.icon,
     required this.title,
     required this.body,
-    this.action,
   });
 
   @override
@@ -330,10 +506,6 @@ class _StateMessage extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          if (action != null) ...[
-            const SizedBox(height: 10),
-            action!,
-          ],
         ],
       ),
     );
