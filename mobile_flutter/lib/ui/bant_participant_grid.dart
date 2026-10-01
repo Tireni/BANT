@@ -10,6 +10,9 @@ class BantParticipantGrid extends StatelessWidget {
   final Set<String> connectedVoiceUserIds;
   final Set<String> activeSpeakerIds;
   final Set<String> mutedVoiceUserIds;
+  final bool moderationMode;
+  final Set<String> selectedUserIds;
+  final ValueChanged<String>? onToggleUser;
 
   const BantParticipantGrid({
     super.key,
@@ -19,6 +22,9 @@ class BantParticipantGrid extends StatelessWidget {
     this.connectedVoiceUserIds = const <String>{},
     this.activeSpeakerIds = const <String>{},
     this.mutedVoiceUserIds = const <String>{},
+    this.moderationMode = false,
+    this.selectedUserIds = const <String>{},
+    this.onToggleUser,
   });
 
   @override
@@ -51,18 +57,25 @@ class BantParticipantGrid extends StatelessWidget {
             final activelySpeaking = activeSpeakerIds.contains(person.id);
             final voiceMuted =
                 person.muted || mutedVoiceUserIds.contains(person.id);
+            final selectable = moderationMode && !isOwner;
+            final selected = selectedUserIds.contains(person.id);
 
-            return Container(
+            return InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: selectable ? () => onToggleUser?.call(person.id) : null,
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
                 border: Border.all(
-                  color: activelySpeaking
-                      ? BantTheme.mint
-                      : isCurrentUser
-                          ? BantTheme.blue
-                          : BantTheme.border,
-                  width: activelySpeaking || isCurrentUser ? 1.8 : 1,
+                  color: selected
+                      ? const Color(0xFFF79009)
+                      : activelySpeaking
+                          ? BantTheme.mint
+                          : isCurrentUser
+                              ? BantTheme.blue
+                              : BantTheme.border,
+                  width: selected || activelySpeaking || isCurrentUser ? 1.8 : 1,
                 ),
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -166,8 +179,21 @@ class BantParticipantGrid extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (selectable) ...[
+                    const SizedBox(height: 6),
+                    Icon(
+                      selected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 18,
+                      color: selected
+                          ? const Color(0xFFF79009)
+                          : BantTheme.secondary,
+                    ),
+                  ],
                 ],
               ),
+            ),
             );
           },
         );
