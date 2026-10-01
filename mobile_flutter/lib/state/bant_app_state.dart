@@ -31,8 +31,7 @@ class BantAppState extends ChangeNotifier {
       rooms = (results[0] as List<Map<String, dynamic>>)
           .map(BantRoom.fromJson)
           .toList();
-      notifications =
-          List<Map<String, dynamic>>.from(results[1] as List);
+      notifications = List<Map<String, dynamic>>.from(results[1]);
     } catch (e) {
       error = e.toString();
     } finally {
