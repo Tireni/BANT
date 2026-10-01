@@ -37,6 +37,148 @@ Deno.serve(async (req) => {
     const action = typeof body.action === "string" ? body.action : "";
 
     switch (action) {
+
+      case "bootstrap": {
+        const metadata = user.user_metadata ?? {};
+        const displayName =
+          typeof metadata.full_name === "string" ? metadata.full_name :
+          typeof metadata.name === "string" ? metadata.name :
+          typeof user.email === "string" ? user.email.split("@")[0] :
+          "BANT User";
+        const requestedUsername =
+          typeof metadata.user_name === "string" ? metadata.user_name :
+          typeof metadata.preferred_username === "string" ? metadata.preferred_username :
+          typeof user.email === "string" ? user.email.split("@")[0] :
+          "bant_user";
+
+        const { data: ensured, error: ensureError } = await userClient.rpc("ensure_profile", {
+          p_display_name: displayName,
+          p_username: requestedUsername
+        });
+        if (ensureError) return fail(ensureError);
+
+        const { data: profile, error: profileError } = await userClient
+          .from("profiles")
+          .select("id,display_name,username,bio,avatar_url,onboarding_completed,onboarding_step")
+          .eq("id", user.id)
+          .single();
+        if (profileError) return fail(profileError);
+
+        return json({
+          user: { id: user.id, email: user.email ?? null },
+          profile: profile ?? ensured
+        });
+      }
+
+      case "profile": {
+        const { data, error } = await userClient
+          .from("profiles")
+          .select("id,display_name,username,bio,avatar_url,onboarding_completed,onboarding_step")
+          .eq("id", user.id)
+          .single();
+        if (error) return fail(error);
+        return json({ profile: data });
+      }
+
+      case "interests": {
+        const { data, error } = await userClient
+          .from("interests")
+          .select("id,name,slug")
+          .order("name");
+        if (error) return fail(error);
+
+        const { data: selected, error: selectedError } = await userClient
+          .from("user_interests")
+          .select("interest_id,interests(slug)")
+          .eq("user_id", user.id);
+        if (selectedError) return fail(selectedError);
+
+        return json({
+          interests: data ?? [],
+          selected: (selected ?? []).map((row: any) =>
+            Array.isArray(row.interests) ? row.interests[0]?.slug : row.interests?.slug
+          ).filter(Boolean)
+        });
+      }
+
+      case "onboarding_profile": {
+        const displayName = requireString(body.display_name, "display_name").trim();
+        const username = requireString(body.username, "username").trim().toLowerCase();
+        const bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 160) : "";
+        const avatarUrl = typeof body.avatar_url === "string" && body.avatar_url.trim()
+          ? body.avatar_url.trim()
+          : null;
+
+        if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+          return json({ error: "Username must be 3-24 characters using lowercase letters, numbers, or underscore." }, 400);
+        }
+
+        const { data, error } = await userClient
+          .from("profiles")
+          .update({
+            display_name: displayName,
+            username,
+            bio: bio || null,
+            avatar_url: avatarUrl,
+            onboarding_step: 2
+          })
+          .eq("id", user.id)
+          .select("id,display_name,username,bio,avatar_url,onboarding_completed,onboarding_step")
+          .single();
+        if (error) return fail(error);
+        return json({ profile: data });
+      }
+
+      case "onboarding_interests": {
+        const slugs = Array.isArray(body.interests)
+          ? body.interests.filter((value: unknown) => typeof value === "string")
+          : [];
+        const uniqueSlugs = [...new Set(slugs)];
+        if (uniqueSlugs.length < 3) return json({ error: "Choose at least 3 interests" }, 400);
+
+        const { data: interestRows, error: interestError } = await userClient
+          .from("interests")
+          .select("id,slug")
+          .in("slug", uniqueSlugs);
+        if (interestError) return fail(interestError);
+        if ((interestRows ?? []).length < 3) return json({ error: "Choose valid BANT interests" }, 400);
+
+        const { error: deleteError } = await userClient
+          .from("user_interests")
+          .delete()
+          .eq("user_id", user.id);
+        if (deleteError) return fail(deleteError);
+
+        const { error: insertError } = await userClient
+          .from("user_interests")
+          .insert((interestRows ?? []).map((row: any) => ({
+            user_id: user.id,
+            interest_id: row.id
+          })));
+        if (insertError) return fail(insertError);
+
+        const { data: profile, error: profileError } = await userClient
+          .from("profiles")
+          .update({ onboarding_step: 3 })
+          .eq("id", user.id)
+          .select("id,display_name,username,bio,avatar_url,onboarding_completed,onboarding_step")
+          .single();
+        if (profileError) return fail(profileError);
+
+        return json({ profile, selected: uniqueSlugs });
+      }
+
+      case "finish_onboarding": {
+        const { data, error } = await userClient
+          .from("profiles")
+          .update({ onboarding_completed: true, onboarding_step: 4 })
+          .eq("id", user.id)
+          .select("id,display_name,username,bio,avatar_url,onboarding_completed,onboarding_step")
+          .single();
+        if (error) return fail(error);
+        return json({ profile: data });
+      }
+
       case "feed": {
         const { data, error } = await userClient.rpc("get_live_room_feed", {
           p_limit: 25,
