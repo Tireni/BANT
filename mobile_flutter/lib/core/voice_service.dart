@@ -26,6 +26,9 @@ class VoiceService extends ChangeNotifier {
   bool canPublish = true;
   String? error;
   int remoteCount = 0;
+  Set<String> connectedUserIds = <String>{};
+  Set<String> activeSpeakerIds = <String>{};
+  Set<String> mutedVoiceUserIds = <String>{};
 
   VoiceService(this.supabase);
 
@@ -117,11 +120,27 @@ class VoiceService extends ChangeNotifier {
           notifyListeners();
         })
         ..on<ParticipantConnectedEvent>((_) {
-          _syncRemoteCount();
+          _syncVoiceSnapshot();
           notifyListeners();
         })
         ..on<ParticipantDisconnectedEvent>((_) {
-          _syncRemoteCount();
+          _syncVoiceSnapshot();
+          notifyListeners();
+        })
+        ..on<ActiveSpeakersChangedEvent>((event) {
+          activeSpeakerIds = event.speakers
+              .map((participant) => participant.identity)
+              .where((identity) => identity.isNotEmpty)
+              .toSet();
+          _syncVoiceSnapshot();
+          notifyListeners();
+        })
+        ..on<TrackMutedEvent>((_) {
+          _syncVoiceSnapshot();
+          notifyListeners();
+        })
+        ..on<TrackUnmutedEvent>((_) {
+          _syncVoiceSnapshot();
           notifyListeners();
         })
         ..on<RoomDisconnectedEvent>((_) {
@@ -129,6 +148,9 @@ class VoiceService extends ChangeNotifier {
             status = BantVoiceStatus.idle;
           }
           remoteCount = 0;
+          connectedUserIds = <String>{};
+          activeSpeakerIds = <String>{};
+          mutedVoiceUserIds = <String>{};
           notifyListeners();
         });
 
@@ -146,7 +168,7 @@ class VoiceService extends ChangeNotifier {
         muted = true;
       }
 
-      _syncRemoteCount();
+      _syncVoiceSnapshot();
       status = BantVoiceStatus.connected;
       error = null;
       notifyListeners();
@@ -178,6 +200,7 @@ class VoiceService extends ChangeNotifier {
     try {
       await _room!.localParticipant!.setMicrophoneEnabled(!nextMuted);
       muted = nextMuted;
+      _syncVoiceSnapshot();
       error = null;
       notifyListeners();
     } catch (e) {
@@ -196,6 +219,7 @@ class VoiceService extends ChangeNotifier {
     try {
       await _room!.localParticipant!.setMicrophoneEnabled(!value);
       muted = value;
+      _syncVoiceSnapshot();
       error = null;
       notifyListeners();
     } catch (e) {
@@ -221,17 +245,55 @@ class VoiceService extends ChangeNotifier {
     status = BantVoiceStatus.idle;
     error = null;
     remoteCount = 0;
+    connectedUserIds = <String>{};
+    activeSpeakerIds = <String>{};
+    mutedVoiceUserIds = <String>{};
     notifyListeners();
     await _disposeRoom();
     _roomId = null;
   }
 
+  void _syncVoiceSnapshot() {
+    final room = _room;
+    if (room == null) {
+      remoteCount = 0;
+      connectedUserIds = <String>{};
+      activeSpeakerIds = <String>{};
+      mutedVoiceUserIds = <String>{};
+      return;
+    }
+
+    final connected = <String>{};
+    final mutedIds = <String>{};
+
+    final local = room.localParticipant;
+    if (local != null && local.identity.isNotEmpty) {
+      connected.add(local.identity);
+      if (muted || local.isMuted) {
+        mutedIds.add(local.identity);
+      }
+    }
+
+    for (final participant in room.remoteParticipants.values) {
+      if (participant.identity.isEmpty) continue;
+      connected.add(participant.identity);
+      if (participant.isMuted) {
+        mutedIds.add(participant.identity);
+      }
+    }
+
+    connectedUserIds = connected;
+    mutedVoiceUserIds = mutedIds;
+    activeSpeakerIds = activeSpeakerIds.intersection(connected);
+    remoteCount = room.remoteParticipants.length;
+  }
+
   void _syncRemoteCount() {
-    remoteCount = _room?.remoteParticipants.length ?? 0;
+    _syncVoiceSnapshot();
   }
 
   void _onRoomChanged() {
-    _syncRemoteCount();
+    _syncVoiceSnapshot();
     notifyListeners();
   }
 
