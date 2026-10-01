@@ -119,6 +119,7 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     final joinedRoom = room;
     if (joinedRoom != null) {
       return BantRoomScreen(
@@ -130,7 +131,7 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
     }
 
     return Scaffold(
-      backgroundColor: BantTheme.background,
+      backgroundColor: colors.background,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -141,8 +142,8 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: BantTheme.surface,
-                  border: Border.all(color: BantTheme.border),
+                  color: colors.surface,
+                  border: Border.all(color: colors.border),
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
@@ -151,10 +152,10 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
                     if (loading || joining)
                       const CircularProgressIndicator(),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'BANT ROOM INVITE',
                       style: TextStyle(
-                        color: BantTheme.blue,
+                        color: colors.blue,
                         fontSize: 11,
                         letterSpacing: 1.2,
                         fontWeight: FontWeight.w900,
@@ -164,8 +165,8 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
                     Text(
                       preview?['room_title']?.toString() ?? 'Opening room...',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: BantTheme.text,
+                      style: TextStyle(
+                        color: colors.text,
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
                       ),
@@ -174,8 +175,8 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
                       const SizedBox(height: 8),
                       Text(
                         '${preview!['room_category']} · ${preview!['room_privacy'] == 'private' ? 'Private room' : 'Public room'}',
-                        style: const TextStyle(
-                          color: BantTheme.secondary,
+                        style: TextStyle(
+                          color: colors.secondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -187,18 +188,18 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
                           ? preview!['room_description'].toString()
                           : 'Join the conversation on BANT.',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: BantTheme.secondary,
+                      style: TextStyle(
+                        color: colors.secondary,
                         fontSize: 14,
                         height: 1.5,
                       ),
                     ),
                     if (joining) ...[
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Your account is ready. Joining the invited room...',
                         style: TextStyle(
-                          color: BantTheme.mint,
+                          color: colors.mint,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -208,8 +209,8 @@ class _PendingInviteGateState extends State<PendingInviteGate> {
                       Text(
                         error!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: BantTheme.danger,
+                        style: TextStyle(
+                          color: colors.danger,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
