@@ -13,6 +13,7 @@ class BantParticipantGrid extends StatelessWidget {
   final bool moderationMode;
   final Set<String> selectedUserIds;
   final ValueChanged<String>? onToggleUser;
+  final ValueChanged<BantParticipant>? onUserPressed;
 
   const BantParticipantGrid({
     super.key,
@@ -25,6 +26,7 @@ class BantParticipantGrid extends StatelessWidget {
     this.moderationMode = false,
     this.selectedUserIds = const <String>{},
     this.onToggleUser,
+    this.onUserPressed,
   });
 
   @override
@@ -62,7 +64,11 @@ class BantParticipantGrid extends StatelessWidget {
 
             return InkWell(
               borderRadius: BorderRadius.circular(18),
-              onTap: selectable ? () => onToggleUser?.call(person.id) : null,
+              onTap: selectable
+                  ? () => onToggleUser?.call(person.id)
+                  : isCurrentUser
+                      ? null
+                      : () => onUserPressed?.call(person),
               child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               decoration: BoxDecoration(
