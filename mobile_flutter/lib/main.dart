@@ -13,6 +13,7 @@ import 'models/room.dart';
 import 'screens/create_room_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/pending_invite_gate.dart';
+import 'screens/people_screen.dart';
 import 'screens/room_screen.dart';
 import 'screens/rooms_screen.dart';
 import 'state/bant_app_state.dart';
@@ -991,7 +992,7 @@ class _HomeShellState extends State<HomeShell> {
         onOpenRoom: openRoom,
         onStartRoom: startRoom,
       ),
-      PeopleScreen(api: widget.api),
+      BantPeopleScreen(api: widget.api),
       ProfileScreen(auth: widget.auth, profile: widget.profile),
     ];
 
@@ -1031,50 +1032,6 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class PeopleScreen extends StatelessWidget {
-  final MobileApi api;
-  const PeopleScreen({super.key, required this.api});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: api.people(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        return ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const _BrandMark(),
-            const SizedBox(height: 22),
-            const Text(
-              'People',
-              style: TextStyle(
-                color: BantTheme.text,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 12),
-            for (final person in snapshot.data!)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(child: Icon(Icons.person)),
-                title: Text(person['display_name']?.toString() ?? 'BANT user'),
-                subtitle: Text('@${person['username'] ?? ''}'),
-                trailing: TextButton(
-                  onPressed: () => api.sendFriendRequest(person['id'].toString()),
-                  child: const Text('Add friend'),
-                ),
-              ),
-          ],
-        );
-      },
     );
   }
 }
