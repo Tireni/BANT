@@ -91,7 +91,7 @@ class BantPushService {
     }
 
     const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('bant_app_icon');
     const darwinSettings = DarwinInitializationSettings();
     const settings = InitializationSettings(
       android: androidSettings,
@@ -205,6 +205,8 @@ class BantPushService {
             'bant_social',
             'BANT social',
             channelDescription: 'Friend requests and live room activity.',
+            icon: 'bant_app_icon',
+            largeIcon: DrawableResourceAndroidBitmap('bant_app_icon'),
             importance: Importance.high,
             priority: Priority.high,
           ),
