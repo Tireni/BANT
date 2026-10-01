@@ -6,18 +6,24 @@ import 'core/auth_service.dart';
 import 'core/config.dart';
 import 'core/mobile_api.dart';
 import 'core/voice_service.dart';
+import 'models/profile.dart';
 import 'models/room.dart';
+import 'ui/bant_button.dart';
+import 'ui/bant_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   if (!BantConfig.valid) {
     runApp(const MaterialApp(home: _MissingConfigScreen()));
     return;
   }
+
   await Supabase.initialize(
     url: BantConfig.supabaseUrl,
     anonKey: BantConfig.supabaseAnonKey,
   );
+
   runApp(const BantMobileApp());
 }
 
@@ -29,11 +35,7 @@ class BantMobileApp extends StatelessWidget {
     return MaterialApp(
       title: 'BANT',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF0E96F6),
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-      ),
+      theme: BantTheme.light(),
       home: const AuthGate(),
     );
   }
@@ -48,27 +50,125 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   late final AuthService auth;
+  late final MobileApi api;
+  late final Stream<AuthState> authChanges;
+  BantProfile? profile;
+  bool loading = true;
+  String? error;
 
   @override
   void initState() {
     super.initState();
     auth = AuthService(Supabase.instance.client);
-    auth.changes.listen((_) {
-      if (mounted) setState(() {});
+    api = MobileApi(Supabase.instance.client);
+    authChanges = auth.changes;
+    authChanges.listen((_) => bootstrap());
+    bootstrap();
+  }
+
+  Future<void> bootstrap() async {
+    if (!mounted) return;
+
+    if (auth.session == null) {
+      setState(() {
+        profile = null;
+        error = null;
+        loading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      error = null;
     });
+
+    try {
+      final data = await api.bootstrap();
+      final next = BantProfile.fromJson(
+        Map<String, dynamic>.from(data['profile']),
+      );
+      if (!mounted) return;
+      setState(() {
+        profile = next;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = e.toString();
+        loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return auth.session == null
-        ? SignInScreen(auth: auth)
-        : HomeShell(auth: auth);
+    if (loading) {
+      return const _BrandedLoadingScreen(label: 'Opening BANT...');
+    }
+
+    if (auth.session == null) {
+      return SignInScreen(auth: auth);
+    }
+
+    if (error != null) {
+      return _RetryScreen(
+        message: error!,
+        onRetry: bootstrap,
+        onSignOut: auth.signOut,
+      );
+    }
+
+    final current = profile;
+    if (current == null) {
+      return _RetryScreen(
+        message: 'BANT could not load your profile.',
+        onRetry: bootstrap,
+        onSignOut: auth.signOut,
+      );
+    }
+
+    if (!current.onboardingCompleted) {
+      return OnboardingFlow(
+        api: api,
+        profile: current,
+        onComplete: bootstrap,
+      );
+    }
+
+    return HomeShell(auth: auth, api: api, profile: current);
   }
 }
 
-class SignInScreen extends StatelessWidget {
+class SignInScreen extends StatefulWidget {
   final AuthService auth;
   const SignInScreen({super.key, required this.auth});
+
+  @override
+  State<SignInScreen> createState() => _SignInScreenState();
+}
+
+class _SignInScreenState extends State<SignInScreen> {
+  bool loading = false;
+  String? error;
+
+  Future<void> signIn() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      await widget.auth.signInWithGoogle();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          loading = false;
+          error = e.toString();
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,26 +176,549 @@ class SignInScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: ListView(
+              shrinkWrap: true,
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Welcome to BANT',
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
+              children: [
+                const _BrandMark(),
+                const SizedBox(height: 36),
+                const Text(
+                  'Welcome to BANT',
+                  style: TextStyle(
+                    color: BantTheme.text,
+                    fontSize: 34,
+                    height: 1.1,
+                    fontWeight: FontWeight.w900,
                   ),
-                  const SizedBox(height: 8),
-                  const Text('Find your people. Join the conversation.'),
-                  const SizedBox(height: 28),
-                  FilledButton(
-                    onPressed: auth.signInWithGoogle,
-                    child: const Text('Continue with Google'),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Find your people. Join live conversations. Start your own room.',
+                  style: TextStyle(
+                    color: BantTheme.secondary,
+                    fontSize: 16,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                BantButton(
+                  label: 'Continue with Google',
+                  loading: loading,
+                  onPressed: signIn,
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    error!,
+                    style: const TextStyle(
+                      color: BantTheme.danger,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
+                const SizedBox(height: 16),
+                const Text(
+                  'Google sign-in is currently the way to access BANT.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: BantTheme.secondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class OnboardingFlow extends StatefulWidget {
+  final MobileApi api;
+  final BantProfile profile;
+  final Future<void> Function() onComplete;
+
+  const OnboardingFlow({
+    super.key,
+    required this.api,
+    required this.profile,
+    required this.onComplete,
+  });
+
+  @override
+  State<OnboardingFlow> createState() => _OnboardingFlowState();
+}
+
+class _OnboardingFlowState extends State<OnboardingFlow> {
+  late BantProfile profile;
+  late int step;
+
+  @override
+  void initState() {
+    super.initState();
+    profile = widget.profile;
+    step = profile.onboardingStep.clamp(1, 3);
+  }
+
+  void updateProfile(BantProfile next) {
+    setState(() {
+      profile = next;
+      step = next.onboardingStep.clamp(1, 3);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (step <= 1) {
+      return ProfileOnboardingScreen(
+        api: widget.api,
+        profile: profile,
+        onSaved: updateProfile,
+      );
+    }
+    if (step == 2) {
+      return InterestsOnboardingScreen(
+        api: widget.api,
+        onBack: () => setState(() => step = 1),
+        onSaved: updateProfile,
+      );
+    }
+    return CompleteOnboardingScreen(
+      profile: profile,
+      api: widget.api,
+      onBack: () => setState(() => step = 2),
+      onComplete: widget.onComplete,
+    );
+  }
+}
+
+class ProfileOnboardingScreen extends StatefulWidget {
+  final MobileApi api;
+  final BantProfile profile;
+  final ValueChanged<BantProfile> onSaved;
+
+  const ProfileOnboardingScreen({
+    super.key,
+    required this.api,
+    required this.profile,
+    required this.onSaved,
+  });
+
+  @override
+  State<ProfileOnboardingScreen> createState() => _ProfileOnboardingScreenState();
+}
+
+class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
+  late final TextEditingController name;
+  late final TextEditingController username;
+  late final TextEditingController bio;
+  bool loading = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    name = TextEditingController(text: widget.profile.displayName);
+    username = TextEditingController(text: widget.profile.username);
+    bio = TextEditingController(text: widget.profile.bio);
+  }
+
+  @override
+  void dispose() {
+    name.dispose();
+    username.dispose();
+    bio.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (name.text.trim().isEmpty || username.text.trim().isEmpty) {
+      setState(() => error = 'Name and username are required.');
+      return;
+    }
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final data = await widget.api.saveOnboardingProfile(
+        displayName: name.text.trim(),
+        username: username.text.trim().toLowerCase(),
+        bio: bio.text.trim(),
+      );
+      widget.onSaved(BantProfile.fromJson(data));
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _OnboardingScaffold(
+      stepLabel: 'STEP 1 OF 2',
+      title: 'SET UP YOUR PROFILE',
+      subtitle: 'Tell people a little about who you are.',
+      footer: BantButton(
+        label: 'Continue',
+        loading: loading,
+        onPressed: save,
+      ),
+      child: Column(
+        children: [
+          const CircleAvatar(
+            radius: 42,
+            backgroundColor: Color(0xFFE8F4FF),
+            child: Icon(Icons.person, size: 40, color: BantTheme.blue),
+          ),
+          const SizedBox(height: 22),
+          TextField(
+            controller: name,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(hintText: 'Full name'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: username,
+            autocorrect: false,
+            textCapitalization: TextCapitalization.none,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(hintText: 'Username'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: bio,
+            maxLength: 160,
+            maxLines: 4,
+            decoration: const InputDecoration(hintText: 'Short bio'),
+          ),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                error!,
+                style: const TextStyle(
+                  color: BantTheme.danger,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class InterestsOnboardingScreen extends StatefulWidget {
+  final MobileApi api;
+  final VoidCallback onBack;
+  final ValueChanged<BantProfile> onSaved;
+
+  const InterestsOnboardingScreen({
+    super.key,
+    required this.api,
+    required this.onBack,
+    required this.onSaved,
+  });
+
+  @override
+  State<InterestsOnboardingScreen> createState() => _InterestsOnboardingScreenState();
+}
+
+class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
+  bool loading = true;
+  bool saving = false;
+  String? error;
+  List<Map<String, dynamic>> interests = const [];
+  Set<String> selected = {};
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    try {
+      final data = await widget.api.interests();
+      if (!mounted) return;
+      setState(() {
+        interests = List<Map<String, dynamic>>.from(data['interests'] ?? const []);
+        selected = Set<String>.from(data['selected'] ?? const []);
+        loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() {
+        error = e.toString();
+        loading = false;
+      });
+    }
+  }
+
+  Future<void> save() async {
+    if (selected.length < 3) {
+      setState(() => error = 'Choose at least 3 interests.');
+      return;
+    }
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    try {
+      final data = await widget.api.saveOnboardingInterests(selected.toList());
+      widget.onSaved(BantProfile.fromJson(data));
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _OnboardingScaffold(
+      stepLabel: 'STEP 2 OF 2',
+      title: 'PICK YOUR INTERESTS',
+      subtitle: 'Choose at least 3 so your feed feels like you.',
+      footer: Row(
+        children: [
+          Expanded(
+            child: BantButton(
+              label: 'Back',
+              secondary: true,
+              onPressed: widget.onBack,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: BantButton(
+              label: 'Continue',
+              loading: saving,
+              onPressed: save,
+            ),
+          ),
+        ],
+      ),
+      child: loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final interest in interests)
+                      ChoiceChip(
+                        selectedColor: BantTheme.blue,
+                        labelStyle: TextStyle(
+                          color: selected.contains(interest['slug']) ? Colors.white : BantTheme.text,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        label: Text(interest['name']?.toString() ?? ''),
+                        selected: selected.contains(interest['slug']),
+                        onSelected: (_) {
+                          final slug = interest['slug']?.toString();
+                          if (slug == null) return;
+                          setState(() {
+                            if (!selected.add(slug)) selected.remove(slug);
+                          });
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '${selected.length}/3 selected',
+                  style: TextStyle(
+                    color: selected.length >= 3 ? BantTheme.mint : BantTheme.secondary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    error!,
+                    style: const TextStyle(
+                      color: BantTheme.danger,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class CompleteOnboardingScreen extends StatefulWidget {
+  final BantProfile profile;
+  final MobileApi api;
+  final VoidCallback onBack;
+  final Future<void> Function() onComplete;
+
+  const CompleteOnboardingScreen({
+    super.key,
+    required this.profile,
+    required this.api,
+    required this.onBack,
+    required this.onComplete,
+  });
+
+  @override
+  State<CompleteOnboardingScreen> createState() => _CompleteOnboardingScreenState();
+}
+
+class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
+  bool loading = false;
+  String? error;
+
+  Future<void> finish() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      await widget.api.finishOnboarding();
+      await widget.onComplete();
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _OnboardingScaffold(
+      stepLabel: 'COMPLETE',
+      title: 'COMPLETE SETUP',
+      subtitle: 'Review the basics, then enter BANT.',
+      footer: Row(
+        children: [
+          Expanded(
+            child: BantButton(
+              label: 'Back',
+              secondary: true,
+              onPressed: widget.onBack,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: BantButton(
+              label: 'Enter BANT',
+              loading: loading,
+              onPressed: finish,
+            ),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.check_circle, color: BantTheme.mint, size: 52),
+          const SizedBox(height: 12),
+          const Text(
+            "You're ready.",
+            style: TextStyle(
+              color: BantTheme.text,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '@${widget.profile.username}',
+            style: const TextStyle(
+              color: BantTheme.secondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              style: const TextStyle(
+                color: BantTheme.danger,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OnboardingScaffold extends StatelessWidget {
+  final String stepLabel;
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final Widget footer;
+
+  const _OnboardingScaffold({
+    required this.stepLabel,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    required this.footer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      const _BrandMark(),
+                      const SizedBox(height: 30),
+                      Text(
+                        stepLabel,
+                        style: const TextStyle(
+                          color: BantTheme.blue,
+                          fontSize: 11,
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: BantTheme.text,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: BantTheme.secondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 26),
+                      child,
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
+                  child: footer,
+                ),
+              ],
             ),
           ),
         ),
@@ -106,7 +729,15 @@ class SignInScreen extends StatelessWidget {
 
 class HomeShell extends StatefulWidget {
   final AuthService auth;
-  const HomeShell({super.key, required this.auth});
+  final MobileApi api;
+  final BantProfile profile;
+
+  const HomeShell({
+    super.key,
+    required this.auth,
+    required this.api,
+    required this.profile,
+  });
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -114,25 +745,18 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
-  late final MobileApi api;
-
-  @override
-  void initState() {
-    super.initState();
-    api = MobileApi(Supabase.instance.client);
-  }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      FeedScreen(api: api, title: 'For You'),
-      FeedScreen(api: api, title: 'Live Rooms'),
-      PeopleScreen(api: api),
-      ProfileScreen(auth: widget.auth),
+      FeedScreen(api: widget.api, title: 'For You', profile: widget.profile),
+      FeedScreen(api: widget.api, title: 'Live Rooms', profile: widget.profile),
+      PeopleScreen(api: widget.api),
+      ProfileScreen(auth: widget.auth, profile: widget.profile),
     ];
 
     return Scaffold(
-      body: SafeArea(child: pages[index]),
+      body: SafeArea(child: IndexedStack(index: index, children: pages)),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),
@@ -143,30 +767,6 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
-      floatingActionButton: index < 2
-          ? FloatingActionButton.extended(
-              onPressed: () async {
-                final created = await api.createRoom(
-                  title: 'New BANT room',
-                  description: 'A fresh BANT room.',
-                  category: 'General',
-                  privacy: 'public',
-                );
-                if (!context.mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => RoomScreen(
-                      api: api,
-                      room: BantRoom.fromJson(created),
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Create room'),
-            )
-          : null,
     );
   }
 }
@@ -174,7 +774,14 @@ class _HomeShellState extends State<HomeShell> {
 class FeedScreen extends StatefulWidget {
   final MobileApi api;
   final String title;
-  const FeedScreen({super.key, required this.api, required this.title});
+  final BantProfile profile;
+
+  const FeedScreen({
+    super.key,
+    required this.api,
+    required this.title,
+    required this.profile,
+  });
 
   @override
   State<FeedScreen> createState() => _FeedScreenState();
@@ -201,22 +808,56 @@ class _FeedScreenState extends State<FeedScreen> {
       child: FutureBuilder<List<Map<String, dynamic>>>(
         future: future,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Text(snapshot.error.toString()),
+                const SizedBox(height: 12),
+                BantButton(label: 'Retry', onPressed: refresh),
+              ],
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+
           final rooms = snapshot.data!;
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             children: [
+              const _BrandMark(),
+              const SizedBox(height: 22),
               Text(
-                widget.title,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                widget.title == 'For You'
+                    ? "What's happening, ${widget.profile.displayName.split(' ').first}?"
+                    : widget.title,
+                style: const TextStyle(
+                  color: BantTheme.text,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
+              const Text(
+                'Find the room for your mood.',
+                style: TextStyle(color: BantTheme.secondary),
+              ),
+              const SizedBox(height: 20),
               for (final raw in rooms)
                 Card(
+                  elevation: 0,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    side: const BorderSide(color: BantTheme.border),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                   child: ListTile(
-                    title: Text(raw['title']?.toString() ?? 'BANT room'),
+                    contentPadding: const EdgeInsets.all(14),
+                    title: Text(
+                      raw['title']?.toString() ?? 'BANT room',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
                     subtitle: Text(
                       '${raw['category'] ?? 'General'} · ${raw['participant_count'] ?? 0}/${raw['max_participants'] ?? 20}',
                     ),
@@ -255,15 +896,22 @@ class PeopleScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
+            const _BrandMark(),
+            const SizedBox(height: 22),
             const Text(
               'People',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: BantTheme.text,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 12),
             for (final person in snapshot.data!)
               ListTile(
+                contentPadding: EdgeInsets.zero,
                 leading: const CircleAvatar(child: Icon(Icons.person)),
                 title: Text(person['display_name']?.toString() ?? 'BANT user'),
                 subtitle: Text('@${person['username'] ?? ''}'),
@@ -281,24 +929,44 @@ class PeopleScreen extends StatelessWidget {
 
 class ProfileScreen extends StatelessWidget {
   final AuthService auth;
-  const ProfileScreen({super.key, required this.auth});
+  final BantProfile profile;
+
+  const ProfileScreen({
+    super.key,
+    required this.auth,
+    required this.profile,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final user = auth.session?.user;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          'Profile',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 16),
-        Text(user?.email ?? 'BANT user'),
+        const _BrandMark(),
         const SizedBox(height: 24),
-        OutlinedButton(
+        const CircleAvatar(
+          radius: 42,
+          child: Icon(Icons.person, size: 38),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          profile.displayName,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        Text(
+          '@${profile.username}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: BantTheme.secondary),
+        ),
+        const SizedBox(height: 24),
+        BantButton(
+          label: 'Sign out',
+          secondary: true,
           onPressed: auth.signOut,
-          child: const Text('Sign out'),
         ),
       ],
     );
@@ -340,13 +1008,12 @@ class _RoomScreenState extends State<RoomScreen> {
           busy = false;
         });
       }
-    } catch (error) {
-      if (mounted) {
-        setState(() => busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
-      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
   }
 
@@ -378,7 +1045,7 @@ class _RoomScreenState extends State<RoomScreen> {
           ListTile(
             leading: Icon(
               muted ? Icons.mic_off : Icons.mic,
-              color: connected ? Colors.green : Colors.grey,
+              color: connected ? BantTheme.mint : Colors.grey,
             ),
             title: Text(
               busy
@@ -395,9 +1062,7 @@ class _RoomScreenState extends State<RoomScreen> {
               children: [
                 for (final item in messages)
                   ListTile(
-                    title: Text(
-                      item['sender_name']?.toString() ?? 'BANT user',
-                    ),
+                    title: Text(item['sender_name']?.toString() ?? 'BANT user'),
                     subtitle: Text(item['body']?.toString() ?? ''),
                   ),
               ],
@@ -438,12 +1103,9 @@ class _RoomScreenState extends State<RoomScreen> {
                   ),
                   IconButton(
                     onPressed: () async {
-                      final invite =
-                          await widget.api.createInvite(widget.room.id);
-                      final token =
-                          invite['invite_token']?.toString() ?? '';
-                      final link =
-                          'https://bant-demo.vercel.app/r/$token';
+                      final invite = await widget.api.createInvite(widget.room.id);
+                      final token = invite['invite_token']?.toString() ?? '';
+                      final link = 'https://bant-demo.vercel.app/r/$token';
                       await Share.share(
                         '${widget.room.title}\nJoin the conversation on BANT: $link',
                       );
@@ -460,6 +1122,123 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 }
 
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F4FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Text(
+            'B',
+            style: TextStyle(
+              color: BantTheme.blue,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F4FF),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Text(
+            'BANT',
+            style: TextStyle(
+              color: BantTheme.blue,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BrandedLoadingScreen extends StatelessWidget {
+  final String label;
+  const _BrandedLoadingScreen({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _BrandMark(),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 14),
+              Text(label),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RetryScreen extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+  final Future<void> Function() onSignOut;
+
+  const _RetryScreen({
+    required this.message,
+    required this.onRetry,
+    required this.onSignOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const _BrandMark(),
+                  const SizedBox(height: 24),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: BantTheme.danger),
+                  ),
+                  const SizedBox(height: 16),
+                  BantButton(label: 'Try again', onPressed: onRetry),
+                  const SizedBox(height: 10),
+                  BantButton(
+                    label: 'Sign out',
+                    secondary: true,
+                    onPressed: onSignOut,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MissingConfigScreen extends StatelessWidget {
   const _MissingConfigScreen();
 
@@ -470,7 +1249,7 @@ class _MissingConfigScreen extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'BANT mobile needs SUPABASE_URL and SUPABASE_ANON_KEY dart defines.',
+            'BANT Android needs SUPABASE_URL and SUPABASE_ANON_KEY dart defines.',
             textAlign: TextAlign.center,
           ),
         ),
