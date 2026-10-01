@@ -262,7 +262,7 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
                           onTap: () =>
                               setState(() => noiseControl = !noiseControl),
                           child: Container(
-                            minHeight: 54,
+                            constraints: const BoxConstraints(minHeight: 54),
                             padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
                               color: noiseControl
