@@ -21,7 +21,8 @@ class VoiceService extends ChangeNotifier {
   String? _roomId;
 
   BantVoiceStatus status = BantVoiceStatus.idle;
-  bool muted = false;
+  bool selfMuted = false;
+  bool adminMuted = false;
   bool speakerOn = true;
   bool canPublish = true;
   String? error;
@@ -35,6 +36,8 @@ class VoiceService extends ChangeNotifier {
   bool get connected =>
       _room?.connectionState == ConnectionState.connected &&
       status == BantVoiceStatus.connected;
+
+  bool get muted => selfMuted || adminMuted || !canPublish;
 
   Future<void> connect(
     String roomId, {
@@ -52,7 +55,8 @@ class VoiceService extends ChangeNotifier {
 
     _roomId = roomId;
     canPublish = publishMicrophone;
-    muted = startMuted || !publishMicrophone;
+    selfMuted = false;
+    adminMuted = startMuted;
     error = null;
     status = BantVoiceStatus.connecting;
     notifyListeners();
@@ -162,10 +166,7 @@ class VoiceService extends ChangeNotifier {
       speakerOn = true;
 
       if (publishMicrophone) {
-        await nextRoom.localParticipant?.setMicrophoneEnabled(!startMuted);
-        muted = startMuted;
-      } else {
-        muted = true;
+        await nextRoom.localParticipant?.setMicrophoneEnabled(!muted);
       }
 
       _syncVoiceSnapshot();
@@ -194,31 +195,26 @@ class VoiceService extends ChangeNotifier {
   }
 
   Future<void> toggleMute() async {
-    if (!canPublish || _room?.localParticipant == null) return;
+    if (!canPublish || _room?.localParticipant == null || adminMuted) return;
 
-    final nextMuted = !muted;
-    try {
-      await _room!.localParticipant!.setMicrophoneEnabled(!nextMuted);
-      muted = nextMuted;
-      _syncVoiceSnapshot();
-      error = null;
-      notifyListeners();
-    } catch (e) {
-      error = 'Unable to update microphone state.';
-      notifyListeners();
-    }
+    selfMuted = !selfMuted;
+    await _applyEffectiveMute();
   }
 
-  Future<void> setMuted(bool value) async {
+  Future<void> setAdminMuted(bool value) async {
+    adminMuted = value;
+    await _applyEffectiveMute();
+  }
+
+  Future<void> _applyEffectiveMute() async {
     if (!canPublish || _room?.localParticipant == null) {
-      muted = true;
+      _syncVoiceSnapshot();
       notifyListeners();
       return;
     }
 
     try {
-      await _room!.localParticipant!.setMicrophoneEnabled(!value);
-      muted = value;
+      await _room!.localParticipant!.setMicrophoneEnabled(!muted);
       _syncVoiceSnapshot();
       error = null;
       notifyListeners();
