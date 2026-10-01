@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/auth_service.dart';
 import '../core/avatar_service.dart';
 import '../core/mobile_api.dart';
+import '../core/theme_controller.dart';
 import '../models/profile.dart';
 import '../ui/bant_button.dart';
 import '../ui/bant_theme.dart';
@@ -12,12 +13,14 @@ class BantProfileScreen extends StatefulWidget {
   final AuthService auth;
   final MobileApi api;
   final BantProfile profile;
+  final BantThemeController themeController;
 
   const BantProfileScreen({
     super.key,
     required this.auth,
     required this.api,
     required this.profile,
+    required this.themeController,
   });
 
   @override
@@ -275,6 +278,8 @@ class _BantProfileScreenState extends State<BantProfileScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          _AppearanceCard(themeController: widget.themeController),
+          const SizedBox(height: 10),
           _SettingsTile(
             icon: Icons.notifications_outlined,
             title: 'Notifications',
@@ -295,6 +300,80 @@ class _BantProfileScreenState extends State<BantProfileScreen> {
             label: 'Sign out',
             secondary: true,
             onPressed: widget.auth.signOut,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppearanceCard extends StatelessWidget {
+  final BantThemeController themeController;
+
+  const _AppearanceCard({
+    required this.themeController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Appearance',
+            style: TextStyle(
+              color: colors.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: colors.soft,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                for (final option in BantThemePreference.values)
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => themeController.setPreference(option),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        constraints: const BoxConstraints(minHeight: 42),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: themeController.preference == option
+                              ? colors.blue
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          option.name[0].toUpperCase() + option.name.substring(1),
+                          style: TextStyle(
+                            color: themeController.preference == option
+                                ? Colors.white
+                                : colors.secondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
