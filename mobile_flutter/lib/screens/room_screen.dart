@@ -679,13 +679,13 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                           CrossAxisAlignment.stretch,
                                       children: [
                                         if (chat.loading)
-                                          const Padding(
-                                            padding: EdgeInsets.symmetric(
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
                                               vertical: 12,
                                             ),
                                             child: Row(
                                               children: [
-                                                SizedBox(
+                                                const SizedBox(
                                                   width: 18,
                                                   height: 18,
                                                   child:
@@ -693,7 +693,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                                     strokeWidth: 2,
                                                   ),
                                                 ),
-                                                SizedBox(width: 10),
+                                                const SizedBox(width: 10),
                                                 Text(
                                                   'Loading messages...',
                                                   style: TextStyle(
@@ -1299,7 +1299,6 @@ class _LoadingRoom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = BantTheme.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
