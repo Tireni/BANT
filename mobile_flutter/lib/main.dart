@@ -9,6 +9,7 @@ import 'core/config.dart';
 import 'core/invite_links.dart';
 import 'core/mobile_api.dart';
 import 'core/pending_invite_store.dart';
+import 'core/theme_controller.dart';
 import 'models/profile.dart';
 import 'models/room.dart';
 import 'screens/create_room_screen.dart';
@@ -38,8 +39,34 @@ Future<void> main() async {
   runApp(const BantMobileApp());
 }
 
-class BantMobileApp extends StatelessWidget {
+class BantMobileApp extends StatefulWidget {
   const BantMobileApp({super.key});
+
+  @override
+  State<BantMobileApp> createState() => _BantMobileAppState();
+}
+
+class _BantMobileAppState extends State<BantMobileApp> {
+  late final BantThemeController themeController;
+
+  @override
+  void initState() {
+    super.initState();
+    themeController = BantThemeController();
+    themeController.addListener(_themeChanged);
+    themeController.load();
+  }
+
+  void _themeChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    themeController.removeListener(_themeChanged);
+    themeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,13 +74,20 @@ class BantMobileApp extends StatelessWidget {
       title: 'BANT',
       debugShowCheckedModeBanner: false,
       theme: BantTheme.light(),
-      home: const AuthGate(),
+      darkTheme: BantTheme.dark(),
+      themeMode: themeController.mode,
+      home: AuthGate(themeController: themeController),
     );
   }
 }
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
+  final BantThemeController themeController;
+
+  const AuthGate({
+    super.key,
+    required this.themeController,
+  });
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -211,7 +245,12 @@ class _AuthGateState extends State<AuthGate> {
       );
     }
 
-    return HomeShell(auth: auth, api: api, profile: current);
+    return HomeShell(
+      auth: auth,
+      api: api,
+      profile: current,
+      themeController: widget.themeController,
+    );
   }
 }
 
@@ -902,12 +941,14 @@ class HomeShell extends StatefulWidget {
   final AuthService auth;
   final MobileApi api;
   final BantProfile profile;
+  final BantThemeController themeController;
 
   const HomeShell({
     super.key,
     required this.auth,
     required this.api,
     required this.profile,
+    required this.themeController,
   });
 
   @override
@@ -982,7 +1023,12 @@ class _HomeShellState extends State<HomeShell> {
         onStartRoom: startRoom,
       ),
       BantPeopleScreen(api: widget.api),
-      BantProfileScreen(auth: widget.auth, api: widget.api, profile: widget.profile),
+      BantProfileScreen(
+        auth: widget.auth,
+        api: widget.api,
+        profile: widget.profile,
+        themeController: widget.themeController,
+      ),
     ];
 
     return Scaffold(
