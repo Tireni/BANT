@@ -1,0 +1,23 @@
+# Keep Vercel focused on the Expo web app.
+# The web build runs from the repository root and only needs the Expo/React source.
+
+mobile_flutter/
+supabase/
+docs/
+tests/
+scripts/
+logos/
+
+# Native/platform projects are not part of the Vercel web deployment.
+android/
+ios/
+
+# Local/project tooling
+.dart_tool/
+.idea/
+.vscode/
+*.iml
+
+# Generated/local files
+coverage/
+*.log
