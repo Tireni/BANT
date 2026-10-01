@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/auth_service.dart';
 import 'core/config.dart';
+import 'core/invite_links.dart';
 import 'core/mobile_api.dart';
 import 'core/pending_invite_store.dart';
 import 'models/profile.dart';
@@ -106,21 +107,8 @@ class _AuthGateState extends State<AuthGate> {
     );
   }
 
-  String? _inviteTokenFromUri(Uri uri) {
-    if (uri.scheme == 'bant' && uri.host == 'invite') {
-      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
-    }
-    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
-        uri.host == 'bant-demo.vercel.app' &&
-        uri.pathSegments.length >= 2 &&
-        uri.pathSegments.first == 'r') {
-      return uri.pathSegments[1];
-    }
-    return null;
-  }
-
   Future<void> _captureInviteUri(Uri uri) async {
-    final token = _inviteTokenFromUri(uri);
+    final token = bantInviteTokenFromUri(uri);
     if (token == null || token.isEmpty) return;
     await pendingInviteStore.save(token);
     if (!mounted) return;
