@@ -25,6 +25,10 @@ $requiredPermissions = @(
   '<uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>',
   '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>',
   '<uses-permission android:name="android.permission.RECORD_AUDIO"/>',
+  '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>',
+  '<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>',
+  '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>',
+  '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>',
   '<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>',
   '<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>',
   '<uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>'
@@ -80,6 +84,18 @@ if ($xml -notmatch 'flutter_deeplinking_enabled') {
 '@
 }
 
+
+if ($xml -notmatch 'BackgroundAudioService') {
+  $backgroundService = @'
+        <service
+            android:name=".BackgroundAudioService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaPlayback" />
+'@
+  $xml = $xml -replace '</application>', ($backgroundService + '    </application>')
+}
+
 Set-Content -Path $manifest -Value $xml -Encoding UTF8
 
 $mainActivity = Get-ChildItem -Path "android/app/src/main/kotlin" -Filter "MainActivity.kt" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -94,6 +110,7 @@ if ($mainActivity) {
 $packageLine
 
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -116,11 +133,95 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bant/background_audio")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val microphone = call.argument<Boolean>("microphone") ?: false
+                        val serviceIntent = Intent(this, BackgroundAudioService::class.java).apply {
+                            putExtra("microphone", microphone)
+                        }
+                        ContextCompat.startForegroundService(this, serviceIntent)
+                        result.success(null)
+                    }
+                    "stop" -> {
+                        stopService(Intent(this, BackgroundAudioService::class.java))
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 }
 "@
 
   Set-Content -Path $mainActivity.FullName -Value $mainSource -Encoding UTF8
+
+  $servicePath = Join-Path $mainActivity.Directory.FullName "BackgroundAudioService.kt"
+  $serviceSource = @"
+$packageLine
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+
+class BackgroundAudioService : Service() {
+    companion object {
+        private const val CHANNEL_ID = "bant_live_audio"
+        private const val NOTIFICATION_ID = 2401
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "BANT live audio",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Keeps BANT room audio active while you use other apps."
+            }
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val microphone = intent?.getBooleanExtra("microphone", false) == true
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("BANT room is live")
+            .setContentText("Your room audio stays connected in the background.")
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val type = if (microphone) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            }
+            startForeground(NOTIFICATION_ID, notification, type)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}
+"@
+  Set-Content -Path $servicePath -Value $serviceSource -Encoding UTF8
 }
 
 
