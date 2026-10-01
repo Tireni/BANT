@@ -116,6 +116,100 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
                 ),
               ],
             ],
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final details = TextEditingController();
+                String reason = 'unsafe';
+                await showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (sheetContext) => StatefulBuilder(
+                    builder: (context, setSheetState) => SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          20,
+                          20,
+                          20 + MediaQuery.viewInsetsOf(context).bottom,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Report participant',
+                              style: TextStyle(
+                                color: BantTheme.text,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final item in const [
+                                  'spam',
+                                  'harassment',
+                                  'unsafe',
+                                  'impersonation',
+                                  'other',
+                                ])
+                                  ChoiceChip(
+                                    label: Text(item),
+                                    selected: reason == item,
+                                    onSelected: (_) =>
+                                        setSheetState(() => reason = item),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: details,
+                              minLines: 3,
+                              maxLines: 5,
+                              maxLength: 1200,
+                              decoration: const InputDecoration(
+                                hintText: 'Optional report details',
+                              ),
+                            ),
+                            BantButton(
+                              label: 'Submit report',
+                              onPressed: () async {
+                                await widget.api.reportUser(
+                                  userId: person.id,
+                                  reason: reason,
+                                  description: details.text,
+                                );
+                                if (sheetContext.mounted) {
+                                  Navigator.of(sheetContext).pop();
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+                details.dispose();
+              },
+              icon: const Icon(Icons.flag_outlined),
+              label: const Text('Report'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final ok = await state.blockUser(person.id);
+                if (!mounted || !ok) return;
+                Navigator.of(context).pop();
+              },
+              icon: const Icon(Icons.block_rounded, color: BantTheme.danger),
+              label: const Text('Block user'),
+            ),
             if (state.error != null) ...[
               const SizedBox(height: 12),
               Text(
