@@ -143,7 +143,7 @@ class BantHomeScreen extends StatelessWidget {
                     const SizedBox(height: 10),
                     BantButton(
                       label: 'Start a room',
-                      secondary: true,
+                      variant: BantButtonVariant.secondary,
                       onPressed: onStartRoom,
                     ),
                   ],
