@@ -455,10 +455,12 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
         loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() {
-        error = e.toString();
-        loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          error = e.toString();
+          loading = false;
+        });
+      }
     }
   }
 
