@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/auth_service.dart';
+import 'core/avatar_service.dart';
 import 'core/config.dart';
 import 'core/invite_links.dart';
 import 'core/mobile_api.dart';
@@ -269,6 +270,7 @@ class SignInScreen extends StatefulWidget {
 }
 
 class _SignInScreenState extends State<SignInScreen> {
+  bool providerStep = false;
   bool loading = false;
   String? error;
 
@@ -292,89 +294,199 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = BantTheme.of(context);
+
+    if (!providerStep) {
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/brand/bant-mascot.png',
+                            width: 104,
+                            height: 104,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'BANT',
+                            style: TextStyle(
+                              color: colors.blue,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          Text(
+                            'Discover live rooms.\nMeet people you vibe with.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.text,
+                              fontSize: 32,
+                              height: 38 / 32,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Talk, share interests, build friendships, and create your own room.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.secondary,
+                              fontSize: 15,
+                              height: 22 / 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (widget.pendingInviteToken != null) ...[
+                            const SizedBox(height: 18),
+                            const _PendingInviteBanner(),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    children: [
+                      BantButton(
+                        label: 'Join BANT',
+                        onPressed: () => setState(() => providerStep = true),
+                      ),
+                      const SizedBox(height: 12),
+                      BantButton(
+                        label: 'I already have an account',
+                        secondary: true,
+                        onPressed: () => setState(() => providerStep = true),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Built for real conversation.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: colors.muted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
+      backgroundColor: colors.background,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.all(24),
-              children: [
-                const _BrandMark(),
-                const SizedBox(height: 36),
-                Text(
-                  'Welcome to BANT',
-                  style: TextStyle(
-                    color: colors.text,
-                    fontSize: 34,
-                    height: 1.1,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Find your people. Join live conversations. Start your own room.',
-                  style: TextStyle(
-                    color: colors.secondary,
-                    fontSize: 16,
-                    height: 1.45,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (widget.pendingInviteToken != null) ...[
-                  const SizedBox(height: 22),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: colors.soft,
-                      borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed:
+                          loading ? null : () => setState(() => providerStep = false),
+                      icon: Icon(
+                        Icons.arrow_back_rounded,
+                        color: colors.text,
+                      ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  Text(
+                    'Welcome to BANT',
+                    style: TextStyle(
+                      color: colors.text,
+                      fontSize: 30,
+                      height: 36 / 30,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Find your people. Join the conversation.',
+                    style: TextStyle(
+                      color: colors.secondary,
+                      fontSize: 15,
+                      height: 22 / 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      border: Border.all(color: colors.border),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
                       children: [
-                        Icon(Icons.link_rounded, color: colors.blue),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Your room invite is saved. Continue with Google and BANT will return you to that exact room after sign-in and onboarding.',
-                            style: TextStyle(
-                              color: colors.text,
-                              fontWeight: FontWeight.w700,
-                              height: 1.4,
-                            ),
+                        Text(
+                          'Continue with',
+                          style: TextStyle(
+                            color: colors.text,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        BantButton(
+                          label: 'Continue with Google',
+                          loading: loading,
+                          onPressed: signIn,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Google sign-in is currently the only way to access BANT.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.secondary,
+                            fontSize: 12,
+                            height: 18 / 12,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-                const SizedBox(height: 28),
-                BantButton(
-                  label: 'Continue with Google',
-                  loading: loading,
-                  onPressed: signIn,
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 14),
-                  Text(
-                    error!,
-                    style: TextStyle(
-                      color: colors.danger,
-                      fontWeight: FontWeight.w700,
+                  if (widget.pendingInviteToken != null) ...[
+                    const SizedBox(height: 14),
+                    const _PendingInviteBanner(),
+                  ],
+                  if (error != null) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: colors.danger,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-                const SizedBox(height: 16),
-                Text(
-                  'Google sign-in is currently the way to access BANT.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: colors.secondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -473,7 +585,10 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
   late final TextEditingController name;
   late final TextEditingController username;
   late final TextEditingController bio;
+  late final AvatarService avatarService;
+  String? avatarUrl;
   bool loading = false;
+  bool uploading = false;
   String? error;
 
   @override
@@ -482,6 +597,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
     name = TextEditingController(text: widget.profile.displayName);
     username = TextEditingController(text: widget.profile.username);
     bio = TextEditingController(text: widget.profile.bio);
+    avatarUrl = widget.profile.avatarUrl;
+    avatarService = AvatarService(Supabase.instance.client);
   }
 
   @override
@@ -506,6 +623,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
         displayName: name.text.trim(),
         username: username.text.trim().toLowerCase(),
         bio: bio.text.trim(),
+        avatarUrl: avatarUrl,
       );
       widget.onSaved(BantProfile.fromJson(data));
     } catch (e) {
@@ -524,8 +642,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
       subtitle: 'Tell people a little about who you are.',
       footer: BantButton(
         label: 'Continue',
-        loading: loading,
-        onPressed: save,
+        loading: loading || uploading,
+        onPressed: loading || uploading ? null : save,
       ),
       child: Column(
         children: [
@@ -533,10 +651,103 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
             widget.banner!,
             const SizedBox(height: 18),
           ],
-          CircleAvatar(
-            radius: 42,
-            backgroundColor: colors.soft,
-            child: Icon(Icons.person, size: 40, color: colors.blue),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border.all(color: colors.border),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(42),
+                  onTap: uploading
+                      ? null
+                      : () async {
+                          try {
+                            setState(() {
+                              uploading = true;
+                              error = null;
+                            });
+                            final uploaded =
+                                await avatarService.pickAndUpload();
+                            if (!mounted || uploaded == null) return;
+                            setState(() => avatarUrl = uploaded);
+                          } catch (e) {
+                            if (mounted) {
+                              setState(() {
+                                error = e
+                                    .toString()
+                                    .replaceFirst('Exception: ', '');
+                              });
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => uploading = false);
+                            }
+                          }
+                        },
+                  child: CircleAvatar(
+                    radius: 42,
+                    backgroundColor: colors.soft,
+                    backgroundImage:
+                        avatarUrl == null ? null : NetworkImage(avatarUrl!),
+                    child: avatarUrl == null
+                        ? Icon(
+                            Icons.camera_alt_outlined,
+                            size: 28,
+                            color: colors.blue,
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Add a profile photo from your device.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: colors.secondary,
+                    fontSize: 13,
+                    height: 19 / 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                BantButton(
+                  label: uploading ? 'Uploading...' : 'Choose photo',
+                  secondary: true,
+                  loading: uploading,
+                  onPressed: uploading
+                      ? null
+                      : () async {
+                          try {
+                            setState(() {
+                              uploading = true;
+                              error = null;
+                            });
+                            final uploaded =
+                                await avatarService.pickAndUpload();
+                            if (!mounted || uploaded == null) return;
+                            setState(() => avatarUrl = uploaded);
+                          } catch (e) {
+                            if (mounted) {
+                              setState(() {
+                                error = e
+                                    .toString()
+                                    .replaceFirst('Exception: ', '');
+                              });
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => uploading = false);
+                            }
+                          }
+                        },
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 22),
           TextField(
@@ -811,7 +1022,7 @@ class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
             style: TextStyle(
               color: colors.text,
               fontSize: 24,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
@@ -875,7 +1086,7 @@ class _OnboardingScaffold extends StatelessWidget {
                           color: colors.blue,
                           fontSize: 11,
                           letterSpacing: 1.2,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -884,7 +1095,7 @@ class _OnboardingScaffold extends StatelessWidget {
                         style: TextStyle(
                           color: colors.text,
                           fontSize: 28,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 8),
