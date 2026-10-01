@@ -56,7 +56,9 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
     }
     if (maxParticipants < bantMinRoomCapacity ||
         maxParticipants > bantMaxRoomCapacity) {
-      setState(() => error = 'Choose a room size between 5 and 100 participants.');
+      setState(
+        () => error = 'Choose a room size between 5 and 100 participants.',
+      );
       return;
     }
 
@@ -92,253 +94,321 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+
     return Scaffold(
-      backgroundColor: BantTheme.background,
-      appBar: AppBar(
-        backgroundColor: BantTheme.background,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          onPressed: creating ? null : () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        title: const Text(
-          'Start a room',
-          style: TextStyle(
-            color: BantTheme.text,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
+      backgroundColor: colors.background,
       body: SafeArea(
-        top: false,
         child: Column(
           children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                children: [
-                  _Field(
-                    label: 'Room name',
-                    child: TextField(
-                      controller: title,
-                      maxLength: 80,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        hintText: 'What are we talking about?',
-                        counterText: '',
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: IconButton(
+                        onPressed:
+                            creating ? null : () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.arrow_back_rounded,
+                          color: colors.text,
+                          size: 24,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 22),
-                  _Field(
-                    label: 'Optional description',
-                    child: TextField(
-                      controller: description,
-                      maxLength: 280,
-                      minLines: 3,
-                      maxLines: 5,
-                      decoration: const InputDecoration(
-                        hintText: 'Give people a reason to join...',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  _Field(
-                    label: 'Category',
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final item in bantRoomCategories)
-                          ChoiceChip(
-                            label: Text(item),
-                            selected: category == item,
-                            selectedColor: BantTheme.blue,
-                            backgroundColor: BantTheme.surface,
-                            side: BorderSide(
-                              color: category == item
-                                  ? BantTheme.blue
-                                  : BantTheme.border,
-                            ),
-                            labelStyle: TextStyle(
-                              color: category == item
-                                  ? Colors.white
-                                  : BantTheme.secondary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            onSelected: (_) => setState(() => category = item),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  _Field(
-                    label: 'Privacy',
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _PrivacyCard(
-                            icon: Icons.public_rounded,
-                            title: 'Public',
-                            body: 'Anyone can discover and join.',
-                            selected: privacy == 'public',
-                            onTap: () => setState(() => privacy = 'public'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _PrivacyCard(
-                            icon: Icons.lock_outline_rounded,
-                            title: 'Private',
-                            body: 'Only people with an invitation can join.',
-                            selected: privacy == 'private',
-                            onTap: () => setState(() => privacy = 'private'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  _Field(
-                    label: 'Maximum participants',
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: BantTheme.surface,
-                        border: Border.all(color: BantTheme.border),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '$maxParticipants',
-                            style: const TextStyle(
-                              color: BantTheme.text,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final value in bantRoomCapacityOptions)
-                                ChoiceChip(
-                                  label: Text('$value'),
-                                  selected: maxParticipants == value,
-                                  selectedColor: BantTheme.blue,
-                                  backgroundColor: BantTheme.background,
-                                  side: BorderSide(
-                                    color: maxParticipants == value
-                                        ? BantTheme.blue
-                                        : BantTheme.border,
-                                  ),
-                                  labelStyle: TextStyle(
-                                    color: maxParticipants == value
-                                        ? Colors.white
-                                        : BantTheme.text,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                  onSelected: (_) {
-                                    setState(() => maxParticipants = value);
-                                  },
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  _Field(
-                    label: 'Noise Control',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () =>
-                              setState(() => noiseControl = !noiseControl),
-                          child: Container(
-                            constraints: const BoxConstraints(minHeight: 54),
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: noiseControl
-                                  ? const Color(0xFFDFF7EA)
-                                  : BantTheme.surface,
-                              border: Border.all(
-                                color: noiseControl
-                                    ? BantTheme.mint
-                                    : BantTheme.border,
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  noiseControl ? 'ON' : 'OFF',
-                                  style: const TextStyle(
-                                    color: BantTheme.text,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Switch(
-                                  value: noiseControl,
-                                  onChanged: (value) {
-                                    setState(() => noiseControl = value);
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'When enabled, the host can send quiet warnings to participants.',
-                          style: TextStyle(
-                            color: BantTheme.secondary,
-                            fontSize: 12,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 18),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFE9E7),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(
-                        error!,
-                        style: const TextStyle(
-                          color: BantTheme.danger,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Start a room',
+                      style: TextStyle(
+                        color: colors.text,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
-                ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                    children: [
+                      _Field(
+                        colors: colors,
+                        label: 'Room name',
+                        child: TextField(
+                          controller: title,
+                          maxLength: 80,
+                          textInputAction: TextInputAction.next,
+                          style: TextStyle(color: colors.text),
+                          decoration: const InputDecoration(
+                            hintText: 'What are we talking about?',
+                            counterText: '',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      _Field(
+                        colors: colors,
+                        label: 'Optional description',
+                        child: TextField(
+                          controller: description,
+                          maxLength: 280,
+                          minLines: 3,
+                          maxLines: 5,
+                          style: TextStyle(color: colors.text),
+                          decoration: const InputDecoration(
+                            hintText: 'Give people a reason to join...',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      _Field(
+                        colors: colors,
+                        label: 'Category',
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final item in bantRoomCategories)
+                              InkWell(
+                                borderRadius: BorderRadius.circular(999),
+                                onTap: () => setState(() => category = item),
+                                child: Container(
+                                  constraints:
+                                      const BoxConstraints(minHeight: 38),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: category == item
+                                        ? colors.blue
+                                        : colors.surface,
+                                    border: Border.all(
+                                      color: category == item
+                                          ? colors.blue
+                                          : colors.border,
+                                    ),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    item,
+                                    style: TextStyle(
+                                      color: category == item
+                                          ? Colors.white
+                                          : colors.secondary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      _Field(
+                        colors: colors,
+                        label: 'Privacy',
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _PrivacyCard(
+                                colors: colors,
+                                icon: Icons.public_rounded,
+                                title: 'Public',
+                                body: 'Anyone can discover and join.',
+                                selected: privacy == 'public',
+                                onTap: () => setState(() => privacy = 'public'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _PrivacyCard(
+                                colors: colors,
+                                icon: Icons.lock_outline_rounded,
+                                title: 'Private',
+                                body:
+                                    'Only people with an invitation can join.',
+                                selected: privacy == 'private',
+                                onTap: () => setState(() => privacy = 'private'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      _Field(
+                        colors: colors,
+                        label: 'Maximum participants',
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            border: Border.all(color: colors.border),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$maxParticipants',
+                                style: TextStyle(
+                                  color: colors.text,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final value in bantRoomCapacityOptions)
+                                    InkWell(
+                                      borderRadius: BorderRadius.circular(12),
+                                      onTap: () {
+                                        setState(
+                                          () => maxParticipants = value,
+                                        );
+                                      },
+                                      child: Container(
+                                        constraints:
+                                            const BoxConstraints(minWidth: 54),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: maxParticipants == value
+                                              ? colors.blue
+                                              : colors.background,
+                                          border: Border.all(
+                                            color: maxParticipants == value
+                                                ? colors.blue
+                                                : colors.border,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          '$value',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: maxParticipants == value
+                                                ? Colors.white
+                                                : colors.text,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      _Field(
+                        colors: colors,
+                        label: 'Noise Control',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () => setState(
+                                () => noiseControl = !noiseControl,
+                              ),
+                              child: Container(
+                                constraints:
+                                    const BoxConstraints(minHeight: 52),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 14),
+                                decoration: BoxDecoration(
+                                  color: noiseControl
+                                      ? colors.mint
+                                      : colors.surface,
+                                  border: Border.all(color: colors.border),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  noiseControl ? 'ON' : 'OFF',
+                                  style: TextStyle(
+                                    color: noiseControl
+                                        ? const Color(0xFF0B1F1F)
+                                        : colors.text,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'When enabled, the host can send quiet warnings to participants.',
+                              style: TextStyle(
+                                color: colors.secondary,
+                                fontSize: 12,
+                                height: 18 / 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (error != null) ...[
+                        const SizedBox(height: 18),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: colors.danger.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            error!,
+                            style: TextStyle(
+                              color: colors.danger,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              decoration: const BoxDecoration(
-                color: BantTheme.background,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: colors.background,
                 border: Border(
-                  top: BorderSide(color: BantTheme.border),
+                  top: BorderSide(color: colors.border),
                 ),
               ),
-              child: BantButton(
-                label: 'Start room',
-                loading: creating,
-                onPressed: create,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                    child: BantButton(
+                      label: 'Start room',
+                      loading: creating,
+                      onPressed: create,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -349,10 +419,12 @@ class _CreateRoomScreenState extends State<CreateRoomScreen> {
 }
 
 class _Field extends StatelessWidget {
+  final BantPalette colors;
   final String label;
   final Widget child;
 
   const _Field({
+    required this.colors,
     required this.label,
     required this.child,
   });
@@ -364,10 +436,10 @@ class _Field extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: BantTheme.text,
+          style: TextStyle(
+            color: colors.text,
             fontSize: 15,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
           ),
         ),
         const SizedBox(height: 10),
@@ -378,6 +450,7 @@ class _Field extends StatelessWidget {
 }
 
 class _PrivacyCard extends StatelessWidget {
+  final BantPalette colors;
   final IconData icon;
   final String title;
   final String body;
@@ -385,6 +458,7 @@ class _PrivacyCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _PrivacyCard({
+    required this.colors,
     required this.icon,
     required this.title,
     required this.body,
@@ -395,7 +469,7 @@ class _PrivacyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFFDFF7EA) : BantTheme.surface,
+      color: selected ? colors.mintSoft : colors.surface,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -405,7 +479,7 @@ class _PrivacyCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             border: Border.all(
-              color: selected ? BantTheme.mint : BantTheme.border,
+              color: selected ? colors.mint : colors.border,
               width: selected ? 1.5 : 1,
             ),
             borderRadius: BorderRadius.circular(18),
@@ -416,21 +490,21 @@ class _PrivacyCard extends StatelessWidget {
               Icon(
                 icon,
                 size: 22,
-                color: selected ? BantTheme.blue : BantTheme.secondary,
+                color: selected ? colors.blue : colors.secondary,
               ),
               const SizedBox(height: 8),
               Text(
                 title,
-                style: const TextStyle(
-                  color: BantTheme.text,
-                  fontWeight: FontWeight.w900,
+                style: TextStyle(
+                  color: colors.text,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 body,
-                style: const TextStyle(
-                  color: BantTheme.secondary,
+                style: TextStyle(
+                  color: colors.secondary,
                   fontSize: 12,
                   height: 1.4,
                 ),
