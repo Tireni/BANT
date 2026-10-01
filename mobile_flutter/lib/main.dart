@@ -366,7 +366,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Google sign-in is currently the way to access BANT.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -533,9 +533,9 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen> {
             widget.banner!,
             const SizedBox(height: 18),
           ],
-          const CircleAvatar(
+          CircleAvatar(
             radius: 42,
-            backgroundColor: Color(0xFFE8F4FF),
+            backgroundColor: colors.soft,
             child: Icon(Icons.person, size: 40, color: colors.blue),
           ),
           const SizedBox(height: 22),
@@ -688,7 +688,9 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
                       ChoiceChip(
                         selectedColor: colors.blue,
                         labelStyle: TextStyle(
-                          color: selected.contains(interest['slug']) ? Colors.white : BantTheme.text,
+                          color: selected.contains(interest['slug'])
+                              ? Colors.white
+                              : colors.text,
                           fontWeight: FontWeight.w800,
                         ),
                         label: Text(interest['name']?.toString() ?? ''),
@@ -709,7 +711,9 @@ class _InterestsOnboardingScreenState extends State<InterestsOnboardingScreen> {
                 Text(
                   '${selected.length}/3 selected',
                   style: TextStyle(
-                    color: selected.length >= 3 ? BantTheme.mint : BantTheme.secondary,
+                    color: selected.length >= 3
+                        ? colors.mint
+                        : colors.secondary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -802,7 +806,7 @@ class _CompleteOnboardingScreenState extends State<CompleteOnboardingScreen> {
           ],
           Icon(Icons.check_circle, color: colors.mint, size: 52),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             "You're ready.",
             style: TextStyle(
               color: colors.text,
