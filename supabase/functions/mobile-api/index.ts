@@ -849,6 +849,7 @@ async function sendPushToUsers(
               priority: "high",
               notification: {
                 channel_id: "bant_social",
+                icon: "bant_app_icon",
                 sound: "default"
               }
             },
