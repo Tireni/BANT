@@ -161,6 +161,10 @@ class MobileApi {
     await call('mark_notifications_read');
   }
 
+  Future<void> clearNotifications() async {
+    await call('clear_notifications');
+  }
+
   Future<void> submitFeedback({
     required String category,
     required String message,
