@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -14,6 +16,9 @@ enum BantVoiceStatus {
 }
 
 class VoiceService extends ChangeNotifier {
+  static const MethodChannel _backgroundAudioChannel =
+      MethodChannel('bant/background_audio');
+
   final SupabaseClient supabase;
 
   Room? _room;
@@ -81,6 +86,10 @@ class VoiceService extends ChangeNotifier {
       try {
         await Permission.bluetoothConnect.request();
       } catch (_) {}
+
+      await _startBackgroundAudioService(
+        microphone: publishMicrophone,
+      );
 
       final response = await supabase.functions.invoke(
         'mobile-livekit-token',
@@ -178,6 +187,7 @@ class VoiceService extends ChangeNotifier {
       status = BantVoiceStatus.error;
       notifyListeners();
       await _disposeRoom();
+      await _stopBackgroundAudioService();
     }
   }
 
@@ -246,6 +256,7 @@ class VoiceService extends ChangeNotifier {
     mutedVoiceUserIds = <String>{};
     notifyListeners();
     await _disposeRoom();
+    await _stopBackgroundAudioService();
     _roomId = null;
   }
 
@@ -318,6 +329,27 @@ class VoiceService extends ChangeNotifier {
         await room.dispose();
       } catch (_) {}
     }
+  }
+
+  Future<void> _startBackgroundAudioService({
+    required bool microphone,
+  }) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _backgroundAudioChannel.invokeMethod<void>(
+        'start',
+        {'microphone': microphone},
+      );
+    } catch (e) {
+      debugPrint('BANT background audio service could not start: $e');
+    }
+  }
+
+  Future<void> _stopBackgroundAudioService() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _backgroundAudioChannel.invokeMethod<void>('stop');
+    } catch (_) {}
   }
 
   String _friendlyError(Object e) {
