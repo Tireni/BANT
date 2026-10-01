@@ -21,34 +21,26 @@ class BantBrandHeader extends StatelessWidget {
       height: 54,
       child: Row(
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F4FF),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text(
-              'B',
-              style: TextStyle(
-                color: BantTheme.blue,
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-              ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              'assets/brand/bant-mascot.png',
+              width: 46,
+              height: 46,
+              fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F4FF),
+              color: BantTheme.of(context).soft,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Text(
+            child: Text(
               'BANT',
               style: TextStyle(
-                color: BantTheme.blue,
+                color: BantTheme.of(context).blue,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
               ),
@@ -60,9 +52,9 @@ class BantBrandHeader extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: onNotifications,
-                icon: const Icon(
+                icon: Icon(
                   Icons.notifications_none_rounded,
-                  color: BantTheme.secondary,
+                  color: BantTheme.of(context).secondary,
                 ),
               ),
               if (unread > 0)
@@ -75,7 +67,7 @@ class BantBrandHeader extends StatelessWidget {
                     alignment: Alignment.center,
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
-                      color: BantTheme.danger,
+                      color: BantTheme.of(context).danger,
                       borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text(
@@ -93,7 +85,7 @@ class BantBrandHeader extends StatelessWidget {
           const SizedBox(width: 7),
           CircleAvatar(
             radius: 19,
-            backgroundColor: const Color(0xFFE8F4FF),
+            backgroundColor: BantTheme.of(context).soft,
             backgroundImage: profile.avatarUrl != null
                 ? NetworkImage(profile.avatarUrl!)
                 : null,
@@ -102,8 +94,8 @@ class BantBrandHeader extends StatelessWidget {
                     profile.displayName.isEmpty
                         ? 'B'
                         : profile.displayName.characters.first.toUpperCase(),
-                    style: const TextStyle(
-                      color: BantTheme.blue,
+                    style: TextStyle(
+                      color: BantTheme.of(context).blue,
                       fontWeight: FontWeight.w900,
                     ),
                   )
