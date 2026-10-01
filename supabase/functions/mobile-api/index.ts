@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
         const roomId = requireString(body.room_id, "room_id");
         const { data, error } = await userClient
           .from("rooms")
-          .select("id,title,slug,description,category,privacy,status,owner_id,host_id,max_participants,noise_control_enabled,created_at,room_members(user_id,role,left_at,is_muted,profiles!room_members_user_id_fkey(id,display_name,username,bio,avatar_url))")
+          .select("id,title,slug,description,category,privacy,status,owner_id,host_id,max_participants,noise_control_enabled,created_at,room_members(user_id,role,left_at,joined_at,is_muted,profiles!room_members_user_id_fkey(id,display_name,username,bio,avatar_url))")
           .eq("id", roomId)
           .maybeSingle();
         if (error) return fail(error);
@@ -256,6 +256,15 @@ Deno.serve(async (req) => {
         });
         if (error) return fail(error);
         return json({ membership: data });
+      }
+
+      case "end_room": {
+        const roomId = requireString(body.room_id, "room_id");
+        const { data, error } = await userClient.rpc("end_room", {
+          p_room_id: roomId
+        });
+        if (error) return fail(error);
+        return json({ room: data });
       }
 
       case "leave_room": {
