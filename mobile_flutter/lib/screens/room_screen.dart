@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/mobile_api.dart';
+import '../core/voice_service.dart';
 import '../models/room.dart';
 import '../models/room_detail.dart';
 import '../ui/bant_button.dart';
@@ -26,6 +27,7 @@ class BantRoomScreen extends StatefulWidget {
 
 class _BantRoomScreenState extends State<BantRoomScreen> {
   final message = TextEditingController();
+  late final VoiceService voice;
 
   BantRoomDetail? detail;
   List<Map<String, dynamic>> messages = const [];
@@ -52,11 +54,21 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
   @override
   void initState() {
     super.initState();
+    voice = VoiceService(Supabase.instance.client);
+    voice.addListener(_onVoiceChanged);
     _openRoom();
+  }
+
+  void _onVoiceChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    voice.removeListener(_onVoiceChanged);
+    voice.dispose();
     message.dispose();
     super.dispose();
   }
@@ -85,6 +97,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
       }
 
       final roomMessages = await widget.api.messages(widget.room.id);
+      final membership = room.participantFor(currentUserId);
+      final role = membership?.role ?? 'speaker';
 
       if (!mounted) return;
       setState(() {
@@ -93,6 +107,12 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
         loading = false;
         joining = false;
       });
+
+      await voice.connect(
+        widget.room.id,
+        publishMicrophone: role != 'listener',
+        startMuted: membership?.muted ?? false,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -132,12 +152,20 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
     try {
       await widget.api.joinRoom(widget.room.id, role: nextRole);
       await _refresh();
+
+      final membership = currentMembership;
+      await voice.reconnectForRole(
+        widget.room.id,
+        publishMicrophone: nextRole != 'listener',
+        startMuted: membership?.muted ?? false,
+      );
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             nextRole == 'speaker'
-                ? 'You are now a speaker.'
+                ? 'You are now a speaker and can use your microphone.'
                 : 'You are now a listener.',
           ),
         ),
@@ -203,6 +231,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
     setState(() => leaving = true);
 
     try {
+      await voice.disconnect();
+
       if (owner) {
         await widget.api.endRoom(widget.room.id);
       } else {
@@ -314,6 +344,9 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                     room: room,
                                     currentRole:
                                         currentMembership?.role ?? 'speaker',
+                                    voiceStatus: voice.status,
+                                    voiceError: voice.error,
+                                    remoteCount: voice.remoteCount,
                                     onSwitchRole:
                                         isOwner ? null : _switchRole,
                                   ),
@@ -443,6 +476,29 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                           _RoomControls(
                             owner: isOwner,
                             leaving: leaving,
+                            role: currentMembership?.role ?? 'speaker',
+                            voiceStatus: voice.status,
+                            muted: voice.muted,
+                            speakerOn: voice.speakerOn,
+                            onVoice: () async {
+                              if (voice.status == BantVoiceStatus.error ||
+                                  voice.status == BantVoiceStatus.idle) {
+                                final role =
+                                    currentMembership?.role ?? 'speaker';
+                                await voice.connect(
+                                  widget.room.id,
+                                  publishMicrophone: role != 'listener',
+                                  startMuted:
+                                      currentMembership?.muted ?? false,
+                                );
+                                return;
+                              }
+                              if ((currentMembership?.role ?? 'speaker') !=
+                                  'listener') {
+                                await voice.toggleMute();
+                              }
+                            },
+                            onSpeaker: voice.toggleSpeaker,
                             onLeaveOrEnd: _leaveOrEnd,
                             onInvite: () {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -464,11 +520,17 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
 class _RoomIntro extends StatelessWidget {
   final BantRoomDetail room;
   final String currentRole;
+  final BantVoiceStatus voiceStatus;
+  final String? voiceError;
+  final int remoteCount;
   final VoidCallback? onSwitchRole;
 
   const _RoomIntro({
     required this.room,
     required this.currentRole,
+    required this.voiceStatus,
+    required this.voiceError,
+    required this.remoteCount,
     this.onSwitchRole,
   });
 
@@ -573,13 +635,47 @@ class _RoomIntro extends StatelessWidget {
             ),
             const SizedBox(height: 10),
           ],
-          const Text(
-            'Room access is active. Android voice connection is added in Batch 5.',
-            style: TextStyle(
-              color: BantTheme.secondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            children: [
+              Icon(
+                voiceStatus == BantVoiceStatus.connected
+                    ? Icons.graphic_eq_rounded
+                    : voiceStatus == BantVoiceStatus.reconnecting
+                        ? Icons.sync_rounded
+                        : voiceStatus == BantVoiceStatus.error
+                            ? Icons.error_outline_rounded
+                            : Icons.hourglass_top_rounded,
+                size: 16,
+                color: voiceStatus == BantVoiceStatus.connected
+                    ? BantTheme.mint
+                    : voiceStatus == BantVoiceStatus.error
+                        ? BantTheme.danger
+                        : BantTheme.secondary,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  voiceStatus == BantVoiceStatus.connected
+                      ? 'Live audio connected · $remoteCount other media participant${remoteCount == 1 ? '' : 's'}'
+                      : voiceStatus == BantVoiceStatus.reconnecting
+                          ? 'Reconnecting live audio...'
+                          : voiceStatus == BantVoiceStatus.connecting
+                              ? 'Connecting live audio...'
+                              : voiceStatus == BantVoiceStatus.error
+                                  ? (voiceError ?? 'Live audio connection failed.')
+                                  : 'Live audio is not connected.',
+                  style: TextStyle(
+                    color: voiceStatus == BantVoiceStatus.connected
+                        ? BantTheme.mint
+                        : voiceStatus == BantVoiceStatus.error
+                            ? BantTheme.danger
+                            : BantTheme.secondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -590,20 +686,37 @@ class _RoomIntro extends StatelessWidget {
 class _RoomControls extends StatelessWidget {
   final bool owner;
   final bool leaving;
+  final String role;
+  final BantVoiceStatus voiceStatus;
+  final bool muted;
+  final bool speakerOn;
+  final Future<void> Function() onVoice;
+  final Future<void> Function() onSpeaker;
   final VoidCallback onLeaveOrEnd;
   final VoidCallback onInvite;
 
   const _RoomControls({
     required this.owner,
     required this.leaving,
+    required this.role,
+    required this.voiceStatus,
+    required this.muted,
+    required this.speakerOn,
+    required this.onVoice,
+    required this.onSpeaker,
     required this.onLeaveOrEnd,
     required this.onInvite,
   });
 
   @override
   Widget build(BuildContext context) {
+    final listener = role == 'listener';
+    final connected = voiceStatus == BantVoiceStatus.connected;
+    final connecting = voiceStatus == BantVoiceStatus.connecting ||
+        voiceStatus == BantVoiceStatus.reconnecting;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
       decoration: const BoxDecoration(
         color: BantTheme.surface,
         border: Border(top: BorderSide(color: BantTheme.border)),
@@ -614,34 +727,59 @@ class _RoomControls extends StatelessWidget {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.mic_none_rounded),
-                label: const Text('Voice'),
+                onPressed: connecting ? null : onVoice,
+                icon: Icon(
+                  listener
+                      ? Icons.headphones_rounded
+                      : muted
+                          ? Icons.mic_off_rounded
+                          : Icons.mic_rounded,
+                  size: 18,
+                  color: connected ? BantTheme.blue : BantTheme.secondary,
+                ),
+                label: Text(
+                  connecting
+                      ? 'Joining'
+                      : listener
+                          ? (connected ? 'Listening' : 'Listen')
+                          : muted
+                              ? 'Unmute'
+                              : 'Mute',
+                ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: connected ? onSpeaker : null,
+                icon: Icon(
+                  speakerOn
+                      ? Icons.volume_up_rounded
+                      : Icons.hearing_rounded,
+                  size: 18,
+                ),
+                label: Text(speakerOn ? 'Speaker' : 'Earpiece'),
+              ),
+            ),
+            const SizedBox(width: 6),
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: onInvite,
-                icon: const Icon(Icons.share_outlined),
+                icon: const Icon(Icons.share_outlined, size: 18),
                 label: const Text('Invite'),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
-              child: FilledButton.icon(
+              child: FilledButton(
                 onPressed: leaving ? null : onLeaveOrEnd,
                 style: FilledButton.styleFrom(
                   backgroundColor: BantTheme.danger,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
-                icon: Icon(
-                  owner
-                      ? Icons.stop_circle_outlined
-                      : Icons.logout_rounded,
-                ),
-                label: Text(
+                child: Text(
                   leaving
-                      ? 'Please wait'
+                      ? 'Wait'
                       : owner
                           ? 'End'
                           : 'Leave',
