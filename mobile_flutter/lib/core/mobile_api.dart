@@ -143,6 +143,22 @@ class MobileApi {
     return List<Map<String, dynamic>>.from(data?['notifications'] ?? const []);
   }
 
+  Future<void> markNotificationsRead() async {
+    await call('mark_notifications_read');
+  }
+
+  Future<void> reportUser({
+    required String userId,
+    required String reason,
+    String description = '',
+  }) async {
+    await call('report_user', {
+      'user_id': userId,
+      'reason': reason,
+      'description': description,
+    });
+  }
+
   Future<List<Map<String, dynamic>>> messages(String roomId) async {
     final data = await call('messages', {'room_id': roomId});
     return List<Map<String, dynamic>>.from(data?['messages'] ?? const []);
@@ -176,16 +192,19 @@ class MobileApi {
     await call('unblock_user', {'user_id': userId});
   }
 
-  Future<void> updateProfile({
+  Future<Map<String, dynamic>> updateProfile({
     required String displayName,
     required String username,
     String bio = '',
+    String? avatarUrl,
   }) async {
-    await call('update_profile', {
+    final data = await call('update_profile', {
       'display_name': displayName,
       'username': username,
       'bio': bio,
+      'avatar_url': avatarUrl,
     });
+    return Map<String, dynamic>.from(data['profile']);
   }
 
   Future<void> moderateRoom(
