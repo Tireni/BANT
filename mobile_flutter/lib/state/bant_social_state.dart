@@ -69,6 +69,7 @@ class BantSocialState extends ChangeNotifier {
   });
 
   List<BantSocialPerson> people = const [];
+  List<BantSocialPerson> blockedPeople = const [];
   Set<String> friendIds = <String>{};
   List<BantFriendRequest> incoming = const [];
   List<BantFriendRequest> outgoing = const [];
@@ -120,6 +121,9 @@ class BantSocialState extends ChangeNotifier {
       final rawPeople =
           List<Map<String, dynamic>>.from(data['people'] ?? const []);
       final rawFriendIds = List<dynamic>.from(data['friend_ids'] ?? const []);
+      final rawBlocked = List<Map<String, dynamic>>.from(
+        data['blocked_people'] ?? const [],
+      );
       final rawIncoming = List<Map<String, dynamic>>.from(
         data['incoming_requests'] ?? const [],
       );
@@ -128,6 +132,7 @@ class BantSocialState extends ChangeNotifier {
       );
 
       people = rawPeople.map(BantSocialPerson.fromJson).toList();
+      blockedPeople = rawBlocked.map(BantSocialPerson.fromJson).toList();
       friendIds = rawFriendIds.map((value) => value.toString()).toSet();
       incoming = rawIncoming.map(BantFriendRequest.fromJson).toList();
       outgoing = rawOutgoing.map(BantFriendRequest.fromJson).toList();
@@ -204,6 +209,30 @@ class BantSocialState extends ChangeNotifier {
     } catch (e) {
       error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
+    }
+  }
+
+  Future<bool> blockUser(String userId) async {
+    try {
+      await api.blockUser(userId);
+      await load();
+      return true;
+    } catch (e) {
+      error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> unblockUser(String userId) async {
+    try {
+      await api.unblockUser(userId);
+      await load();
+      return true;
+    } catch (e) {
+      error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
     }
   }
 
