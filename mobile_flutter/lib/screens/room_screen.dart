@@ -6,9 +6,11 @@ import '../core/voice_service.dart';
 import '../models/room.dart';
 import '../models/room_detail.dart';
 import '../state/room_chat_controller.dart';
+import '../state/room_moderation_controller.dart';
 import '../ui/bant_button.dart';
 import '../ui/bant_participant_grid.dart';
 import '../ui/bant_theme.dart';
+import '../ui/room_moderation_panel.dart';
 
 class BantRoomScreen extends StatefulWidget {
   final MobileApi api;
@@ -30,6 +32,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
   final message = TextEditingController();
   late final VoiceService voice;
   late final RoomChatController chat;
+  late final RoomModerationController moderation;
 
   BantRoomDetail? detail;
   bool loading = true;
@@ -66,6 +69,14 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
       currentUserId: currentUserId,
     );
     chat.addListener(_onChatChanged);
+    moderation = RoomModerationController(
+      api: widget.api,
+      supabase: Supabase.instance.client,
+      roomId: widget.room.id,
+      currentUserId: currentUserId,
+    );
+    moderation.addListener(_onModerationChanged);
+    moderation.start();
     _subscribeRealtime();
     _openRoom();
   }
@@ -77,6 +88,12 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
   }
 
   void _onChatChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onModerationChanged() {
     if (mounted) {
       setState(() {});
     }
@@ -95,6 +112,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
     voice.dispose();
     chat.removeListener(_onChatChanged);
     chat.dispose();
+    moderation.removeListener(_onModerationChanged);
+    moderation.dispose();
     message.dispose();
     super.dispose();
   }
@@ -190,6 +209,10 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
 
     await _refreshRoomOnly();
 
+    if (userId == currentUserId && payload.newRecord.isNotEmpty) {
+      await voice.setAdminMuted(payload.newRecord['is_muted'] == true);
+    }
+
     if (!mounted || activity == null) return;
     setState(() => roomActivity = activity);
     Future<void>.delayed(const Duration(seconds: 4), () {
@@ -204,6 +227,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
       final room = BantRoomDetail.fromJson(
         await widget.api.room(widget.room.id),
       );
+      final membership = room.participantFor(currentUserId);
+      await voice.setAdminMuted(membership?.muted ?? false);
       if (!mounted) return;
       setState(() {
         detail = room;
@@ -455,9 +480,11 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: loading
+      body: Stack(
+        children: [
+          SafeArea(
+            top: false,
+            child: loading
             ? _LoadingRoom(joining: joining)
             : error != null && room == null
                 ? _RoomError(
@@ -525,6 +552,53 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                         isOwner ? null : _switchRole,
                                   ),
                                   const SizedBox(height: 18),
+                                  if (isOwner) ...[
+                                    RoomModerationPanel(
+                                      selectionMode:
+                                          moderation.selectionMode,
+                                      busy: moderation.busy,
+                                      selectedCount:
+                                          moderation.selectedUserIds.length,
+                                      noiseControlEnabled:
+                                          room.noiseControlEnabled,
+                                      onToggleSelection:
+                                          moderation.toggleSelectionMode,
+                                      onMuteSelected: () async {
+                                        if (await moderation.moderate('mute')) {
+                                          await _refreshRoomOnly();
+                                        }
+                                      },
+                                      onReleaseSelected: () async {
+                                        if (await moderation
+                                            .moderate('unmute')) {
+                                          await _refreshRoomOnly();
+                                        }
+                                      },
+                                      onMuteAll: () async {
+                                        if (await moderation.moderate(
+                                          'mute',
+                                          all: true,
+                                        )) {
+                                          await _refreshRoomOnly();
+                                        }
+                                      },
+                                      onReleaseAll: () async {
+                                        if (await moderation.moderate(
+                                          'unmute',
+                                          all: true,
+                                        )) {
+                                          await _refreshRoomOnly();
+                                        }
+                                      },
+                                      onWarnSelected: () async {
+                                        await moderation.warn();
+                                      },
+                                      onWarnAll: () async {
+                                        await moderation.warn(all: true);
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
                                   _Panel(
                                     child: Column(
                                       crossAxisAlignment:
@@ -550,6 +624,16 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                                 voice.activeSpeakerIds,
                                             mutedVoiceUserIds:
                                                 voice.mutedVoiceUserIds,
+                                            moderationMode:
+                                                moderation.selectionMode,
+                                            selectedUserIds:
+                                                moderation.selectedUserIds,
+                                            onToggleUser: (userId) {
+                                              moderation.toggleUser(
+                                                userId,
+                                                ownerId: room.ownerId,
+                                              );
+                                            },
                                           ),
                                       ],
                                     ),
@@ -689,6 +773,16 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                       ],
                                     ),
                                   ),
+                                  if (moderation.error != null) ...[
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      moderation.error!,
+                                      style: const TextStyle(
+                                        color: BantTheme.danger,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                   if (error != null) ...[
                                     const SizedBox(height: 14),
                                     Text(
@@ -742,6 +836,17 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                           ),
                         ],
                       ),
+          ),
+          if (moderation.warningMessage != null)
+            Positioned(
+              top: 14,
+              left: 20,
+              right: 20,
+              child: NoiseWarningToast(
+                message: moderation.warningMessage!,
+              ),
+            ),
+        ],
       ),
     );
   }
