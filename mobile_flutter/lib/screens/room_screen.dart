@@ -17,12 +17,14 @@ class BantRoomScreen extends StatefulWidget {
   final MobileApi api;
   final BantRoom room;
   final Future<void> Function()? onRoomChanged;
+  final Future<void> Function()? onExit;
 
   const BantRoomScreen({
     super.key,
     required this.api,
     required this.room,
     this.onRoomChanged,
+    this.onExit,
   });
 
   @override
@@ -159,7 +161,10 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                 const SnackBar(content: Text('Room ended.')),
               );
               await widget.onRoomChanged?.call();
-              if (mounted) {
+              if (!mounted) return;
+              if (widget.onExit != null) {
+                await widget.onExit!.call();
+              } else {
                 Navigator.of(context).pop();
               }
               return;
@@ -409,7 +414,11 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
       await widget.onRoomChanged?.call();
 
       if (!mounted) return;
-      Navigator.of(context).pop();
+      if (widget.onExit != null) {
+        await widget.onExit!.call();
+      } else {
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => leaving = false);
