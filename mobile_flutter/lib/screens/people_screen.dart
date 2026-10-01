@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/mobile_api.dart';
 import '../state/bant_social_state.dart';
-import '../ui/bant_button.dart';
 import '../ui/bant_theme.dart';
 
 class BantPeopleScreen extends StatefulWidget {
