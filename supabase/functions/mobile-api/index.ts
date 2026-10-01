@@ -429,6 +429,15 @@ Deno.serve(async (req) => {
         return json({ result: data });
       }
 
+      case "moderate_room_all": {
+        const { data, error } = await userClient.rpc("moderate_room_all_members", {
+          p_room_id: requireString(body.room_id, "room_id"),
+          p_action: body.moderation_action === "unmute" ? "unmute" : "mute"
+        });
+        if (error) return fail(error);
+        return json({ result: data });
+      }
+
       case "send_warning": {
         const { data, error } = await userClient.rpc("send_room_warning", {
           p_room_id: requireString(body.room_id, "room_id"),
