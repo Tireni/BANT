@@ -21,9 +21,15 @@ class RoomChatController extends ChangeNotifier {
   bool sending = false;
   String? error;
   RealtimeChannel? _channel;
+  bool _started = false;
+  bool _disposed = false;
 
   Future<void> start() async {
+    if (_started || _disposed) return;
+    _started = true;
+
     await reload();
+    if (_disposed) return;
 
     _channel = supabase
         .channel('mobile-room-messages:$roomId')
@@ -44,6 +50,7 @@ class RoomChatController extends ChangeNotifier {
   }
 
   Future<void> reload() async {
+    if (_disposed) return;
     loading = true;
     error = null;
     notifyListeners();
@@ -93,7 +100,7 @@ class RoomChatController extends ChangeNotifier {
 
   Future<void> _handleInsert(Map<String, dynamic> row) async {
     final id = row['id']?.toString();
-    if (id == null || id.isEmpty) return;
+    if (_disposed || id == null || id.isEmpty) return;
     if (messages.any((item) => item['id']?.toString() == id)) return;
 
     var senderName = 'BANT user';
@@ -130,6 +137,7 @@ class RoomChatController extends ChangeNotifier {
     messages = updated.length > 100
         ? updated.sublist(updated.length - 100)
         : updated;
+    if (_disposed) return;
     error = null;
     notifyListeners();
   }
@@ -139,6 +147,7 @@ class RoomChatController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     final channel = _channel;
     _channel = null;
     if (channel != null) {
