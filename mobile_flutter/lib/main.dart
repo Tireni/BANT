@@ -1219,6 +1219,8 @@ class _HomeShellState extends State<HomeShell> {
   int index = 0;
   late final BantAppState appState;
   StreamSubscription<BantPushIntent>? _pushSubscription;
+  int unreadNotifications = 0;
+  int peopleNotificationNonce = 0;
 
   @override
   void initState() {
@@ -1226,6 +1228,7 @@ class _HomeShellState extends State<HomeShell> {
     appState = BantAppState(widget.api);
     appState.load();
     _pushSubscription = widget.pushService.intents.listen(_handlePushIntent);
+    _refreshUnreadNotifications();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pending = widget.pushService.takePendingIntent();
       if (pending != null) {
@@ -1241,11 +1244,26 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
+  Future<void> _refreshUnreadNotifications() async {
+    try {
+      final items = await widget.api.notifications();
+      if (!mounted) return;
+      setState(() {
+        unreadNotifications =
+            items.where((item) => item['read_at'] == null).length;
+      });
+    } catch (_) {}
+  }
+
   Future<void> _handlePushIntent(BantPushIntent intent) async {
     if (!mounted) return;
 
     if (intent.type == BantPushIntentType.friendRequest) {
-      setState(() => index = 2);
+      setState(() {
+        index = 2;
+        peopleNotificationNonce++;
+      });
+      await _refreshUnreadNotifications();
       return;
     }
 
@@ -1310,14 +1328,27 @@ class _HomeShellState extends State<HomeShell> {
         profile: widget.profile,
         onOpenRoom: openRoom,
         onStartRoom: startRoom,
-        onNotifications: () => setState(() => index = 2),
+        onNotifications: () => setState(() {
+          index = 2;
+          peopleNotificationNonce++;
+        }),
       ),
       BantRoomsScreen(
         state: appState,
         onOpenRoom: openRoom,
         onStartRoom: startRoom,
       ),
-      BantPeopleScreen(api: widget.api),
+      BantPeopleScreen(
+        key: ValueKey('people-$peopleNotificationNonce'),
+        api: widget.api,
+        initialTab:
+            peopleNotificationNonce > 0 ? 'Notifications' : 'Discover',
+        onUnreadChanged: (count) {
+          if (count != unreadNotifications && mounted) {
+            setState(() => unreadNotifications = count);
+          }
+        },
+      ),
       BantProfileScreen(
         auth: widget.auth,
         api: widget.api,
@@ -1340,23 +1371,39 @@ class _HomeShellState extends State<HomeShell> {
         indicatorColor: colors.soft,
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded),
             label: 'Home',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.forum_outlined),
             selectedIcon: Icon(Icons.forum_rounded),
             label: 'Rooms',
           ),
           NavigationDestination(
-            icon: Icon(Icons.people_outline_rounded),
-            selectedIcon: Icon(Icons.people_rounded),
+            icon: Badge(
+              isLabelVisible: unreadNotifications > 0,
+              label: Text(
+                unreadNotifications > 99
+                    ? '99+'
+                    : unreadNotifications.toString(),
+              ),
+              child: const Icon(Icons.people_outline_rounded),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: unreadNotifications > 0,
+              label: Text(
+                unreadNotifications > 99
+                    ? '99+'
+                    : unreadNotifications.toString(),
+              ),
+              child: const Icon(Icons.people_rounded),
+            ),
             label: 'People',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded),
             label: 'Profile',
