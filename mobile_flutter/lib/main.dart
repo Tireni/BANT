@@ -4,11 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/auth_service.dart';
 import 'core/config.dart';
 import 'core/mobile_api.dart';
-import 'core/voice_service.dart';
 import 'models/profile.dart';
 import 'models/room.dart';
 import 'screens/create_room_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/room_screen.dart';
 import 'screens/rooms_screen.dart';
 import 'state/bant_app_state.dart';
 import 'ui/bant_button.dart';
@@ -770,9 +770,10 @@ class _HomeShellState extends State<HomeShell> {
   void openRoom(BantRoom room) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RoomScreen(
+        builder: (_) => BantRoomScreen(
           api: widget.api,
           room: room,
+          onRoomChanged: appState.refreshRooms,
         ),
       ),
     );
@@ -792,9 +793,10 @@ class _HomeShellState extends State<HomeShell> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RoomScreen(
+        builder: (_) => BantRoomScreen(
           api: widget.api,
           room: created,
+          onRoomChanged: appState.refreshRooms,
         ),
       ),
     );
@@ -945,156 +947,6 @@ class ProfileScreen extends StatelessWidget {
           onPressed: auth.signOut,
         ),
       ],
-    );
-  }
-}
-
-class RoomScreen extends StatefulWidget {
-  final MobileApi api;
-  final BantRoom room;
-  const RoomScreen({super.key, required this.api, required this.room});
-
-  @override
-  State<RoomScreen> createState() => _RoomScreenState();
-}
-
-class _RoomScreenState extends State<RoomScreen> {
-  late final VoiceService voice;
-  final message = TextEditingController();
-  bool connected = false;
-  bool muted = false;
-  bool busy = true;
-  List<Map<String, dynamic>> messages = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    voice = VoiceService(Supabase.instance.client);
-    join();
-  }
-
-  Future<void> join() async {
-    try {
-      await widget.api.joinRoom(widget.room.id);
-      await voice.connect(widget.room.id);
-      messages = await widget.api.messages(widget.room.id);
-      if (mounted) {
-        setState(() {
-          connected = voice.connected;
-          busy = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    }
-  }
-
-  Future<void> leave() async {
-    await voice.disconnect();
-    await widget.api.leaveRoom(widget.room.id);
-    if (mounted) {
-      Navigator.pop(context);
-    }
-  }
-
-  @override
-  void dispose() {
-    message.dispose();
-    voice.disconnect();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.room.title),
-        leading: IconButton(
-          onPressed: leave,
-          icon: const Icon(Icons.arrow_back),
-        ),
-      ),
-      body: Column(
-        children: [
-          ListTile(
-            leading: Icon(
-              muted ? Icons.mic_off : Icons.mic,
-              color: connected ? BantTheme.mint : Colors.grey,
-            ),
-            title: Text(
-              busy
-                  ? 'Connecting...'
-                  : connected
-                      ? 'Voice connected'
-                      : 'Voice not connected',
-            ),
-            subtitle: Text(widget.room.description),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                for (final item in messages)
-                  ListTile(
-                    title: Text(item['sender_name']?.toString() ?? 'BANT user'),
-                    subtitle: Text(item['body']?.toString() ?? ''),
-                  ),
-              ],
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () async {
-                      muted = !muted;
-                      await voice.setMuted(muted);
-                      if (mounted) setState(() {});
-                    },
-                    icon: Icon(muted ? Icons.mic_off : Icons.mic),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: message,
-                      decoration: const InputDecoration(
-                        hintText: 'Message the room',
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () async {
-                      final body = message.text.trim();
-                      if (body.isEmpty) return;
-                      await widget.api.sendMessage(widget.room.id, body);
-                      message.clear();
-                      messages = await widget.api.messages(widget.room.id);
-                      if (mounted) setState(() {});
-                    },
-                    icon: const Icon(Icons.send),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Room sharing returns in the invitations batch.'),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.share),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
