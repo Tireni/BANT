@@ -14,6 +14,7 @@ import 'screens/create_room_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/pending_invite_gate.dart';
 import 'screens/people_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/room_screen.dart';
 import 'screens/rooms_screen.dart';
 import 'state/bant_app_state.dart';
@@ -993,7 +994,7 @@ class _HomeShellState extends State<HomeShell> {
         onStartRoom: startRoom,
       ),
       BantPeopleScreen(api: widget.api),
-      ProfileScreen(auth: widget.auth, profile: widget.profile),
+      BantProfileScreen(auth: widget.auth, api: widget.api, profile: widget.profile),
     ];
 
     return Scaffold(
@@ -1032,52 +1033,6 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class ProfileScreen extends StatelessWidget {
-  final AuthService auth;
-  final BantProfile profile;
-
-  const ProfileScreen({
-    super.key,
-    required this.auth,
-    required this.profile,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const _BrandMark(),
-        const SizedBox(height: 24),
-        const CircleAvatar(
-          radius: 42,
-          child: Icon(Icons.person, size: 38),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          profile.displayName,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        Text(
-          '@${profile.username}',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: BantTheme.secondary),
-        ),
-        const SizedBox(height: 24),
-        BantButton(
-          label: 'Sign out',
-          secondary: true,
-          onPressed: auth.signOut,
-        ),
-      ],
     );
   }
 }
