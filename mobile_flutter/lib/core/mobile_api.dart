@@ -172,6 +172,13 @@ class MobileApi {
     });
   }
 
+  Future<void> moderateRoomAll(String roomId, String action) async {
+    await call('moderate_room_all', {
+      'room_id': roomId,
+      'moderation_action': action,
+    });
+  }
+
   Future<void> sendNoiseWarning(
     String roomId, {
     List<String>? userIds,
