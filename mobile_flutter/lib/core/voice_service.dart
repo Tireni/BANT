@@ -376,6 +376,7 @@ class VoiceService extends ChangeNotifier {
   @override
   void dispose() {
     unawaited(_disposeRoom());
+    unawaited(_stopBackgroundAudioService());
     super.dispose();
   }
 }
