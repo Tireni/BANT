@@ -74,12 +74,52 @@ dependencies {
 }
 
 
+# Install the canonical BANT launcher / notification icon.
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$webAppIcon = Join-Path $repoRoot "assets\brand\bant-app-icon.png"
+$androidDrawableDir = "android/app/src/main/res/drawable-nodpi"
+$androidAppIcon = Join-Path $androidDrawableDir "bant_app_icon.png"
+New-Item -ItemType Directory -Force -Path $androidDrawableDir | Out-Null
+if (Test-Path $webAppIcon) {
+  Copy-Item $webAppIcon $androidAppIcon -Force
+  Write-Host "Installed canonical BANT app icon."
+} else {
+  Write-Warning "BANT app icon was not found at $webAppIcon"
+}
+
 $manifest = "android/app/src/main/AndroidManifest.xml"
 if (-not (Test-Path $manifest)) {
   throw "AndroidManifest.xml was not generated."
 }
 
 $xml = Get-Content $manifest -Raw
+
+# Final MVP app identity: display as BANT, never bant_mobile / bant_mobile_app.
+$xml = [regex]::Replace(
+  $xml,
+  'android:label="[^"]*"',
+  'android:label="BANT"',
+  1
+)
+if ($xml -match 'android:icon="[^"]*"') {
+  $xml = [regex]::Replace(
+    $xml,
+    'android:icon="[^"]*"',
+    'android:icon="@drawable/bant_app_icon"',
+    1
+  )
+} else {
+  $xml = $xml -replace '<application', '<application android:icon="@drawable/bant_app_icon"'
+}
+
+if ($xml -notmatch 'com.google.firebase.messaging.default_notification_icon') {
+  $firebaseIconMeta = @'
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/bant_app_icon" />
+'@
+  $xml = $xml -replace '</application>', ($firebaseIconMeta + '    </application>')
+}
 
 $requiredPermissions = @(
   '<uses-permission android:name="android.permission.INTERNET"/>',
@@ -258,7 +298,7 @@ class BackgroundAudioService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val microphone = intent?.getBooleanExtra("microphone", false) == true
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(com.bant.app.bant_mobile.R.drawable.bant_app_icon)
             .setContentTitle("BANT room is live")
             .setContentText("Your room audio stays connected in the background.")
             .setOngoing(true)
