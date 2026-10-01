@@ -325,15 +325,56 @@ Deno.serve(async (req) => {
       }
 
       case "people": {
-        const { data, error } = await userClient
-          .from("profiles")
-          .select("id,display_name,username,bio,avatar_url")
-          .eq("onboarding_completed", true)
-          .neq("id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(50);
-        if (error) return fail(error);
-        return json({ people: data ?? [] });
+        const [
+          profilesResult,
+          friendshipsResult,
+          requestsResult,
+          blocksResult
+        ] = await Promise.all([
+          userClient
+            .from("profiles")
+            .select("id,display_name,username,bio,avatar_url")
+            .eq("onboarding_completed", true)
+            .neq("id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(50),
+          userClient
+            .from("friendships")
+            .select("id,user_a,user_b")
+            .or(`user_a.eq.${user.id},user_b.eq.${user.id}`),
+          userClient
+            .from("friend_requests")
+            .select("id,sender_id,receiver_id,status")
+            .eq("status", "pending")
+            .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`),
+          userClient
+            .from("user_blocks")
+            .select("blocked_id")
+            .eq("blocker_id", user.id)
+        ]);
+
+        if (profilesResult.error) return fail(profilesResult.error);
+        if (friendshipsResult.error) return fail(friendshipsResult.error);
+        if (requestsResult.error) return fail(requestsResult.error);
+        if (blocksResult.error) return fail(blocksResult.error);
+
+        const blockedIds = new Set(
+          (blocksResult.data ?? []).map((row: any) => row.blocked_id)
+        );
+        const people = (profilesResult.data ?? []).filter(
+          (row: any) => !blockedIds.has(row.id)
+        );
+        const friendIds = (friendshipsResult.data ?? []).map((row: any) =>
+          row.user_a === user.id ? row.user_b : row.user_a
+        );
+        const requests = requestsResult.data ?? [];
+
+        return json({
+          people,
+          friend_ids: friendIds.filter((id: string) => !blockedIds.has(id)),
+          incoming_requests: requests.filter((row: any) => row.receiver_id === user.id),
+          outgoing_requests: requests.filter((row: any) => row.sender_id === user.id)
+        });
       }
 
       case "notifications": {
@@ -384,13 +425,21 @@ Deno.serve(async (req) => {
       }
 
       case "send_friend_request":
-        return rpcBoolean(userClient, "send_friend_request", { p_receiver_id: requireString(body.user_id, "user_id") });
+        return rpcBoolean(userClient, "send_friend_request", {
+          p_receiver_id: requireString(body.user_id, "user_id")
+        });
       case "accept_friend_request":
-        return rpcBoolean(userClient, "accept_friend_request", { p_sender_id: requireString(body.user_id, "user_id") });
+        return rpcBoolean(userClient, "accept_friend_request", {
+          p_request_id: requireString(body.request_id, "request_id")
+        });
       case "decline_friend_request":
-        return rpcBoolean(userClient, "decline_friend_request", { p_sender_id: requireString(body.user_id, "user_id") });
+        return rpcBoolean(userClient, "decline_friend_request", {
+          p_request_id: requireString(body.request_id, "request_id")
+        });
       case "cancel_friend_request":
-        return rpcBoolean(userClient, "cancel_friend_request", { p_receiver_id: requireString(body.user_id, "user_id") });
+        return rpcBoolean(userClient, "cancel_friend_request", {
+          p_request_id: requireString(body.request_id, "request_id")
+        });
       case "block_user":
         return rpcBoolean(userClient, "block_user", { p_blocked_id: requireString(body.user_id, "user_id") });
       case "unblock_user":
