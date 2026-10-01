@@ -1076,37 +1076,31 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Row(
       children: [
-        Container(
-          width: 46,
-          height: 46,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8F4FF),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Text(
-            'B',
-            style: TextStyle(
-              color: BantTheme.blue,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-            ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.asset(
+            'assets/brand/bant-mascot.png',
+            width: 46,
+            height: 46,
+            fit: BoxFit.contain,
           ),
         ),
         const SizedBox(width: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFFE8F4FF),
+            color: colors.soft,
             borderRadius: BorderRadius.circular(999),
           ),
-          child: const Text(
+          child: Text(
             'BANT',
             style: TextStyle(
-              color: BantTheme.blue,
-              fontWeight: FontWeight.w900,
+              color: colors.blue,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
