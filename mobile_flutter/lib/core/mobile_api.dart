@@ -105,6 +105,29 @@ class MobileApi {
     return Map<String, dynamic>.from(data['invite']);
   }
 
+  Future<Map<String, dynamic>?> invitePreview(String token) async {
+    final data = await call('invite_preview', {'invite_token': token});
+    final preview = data['preview'];
+    if (preview == null) return null;
+    return Map<String, dynamic>.from(preview);
+  }
+
+  Future<String> joinInvite(
+    String token, {
+    String role = 'speaker',
+  }) async {
+    final data = await call('join_invite', {
+      'invite_token': token,
+      'role': role,
+    });
+    final membership = Map<String, dynamic>.from(data['membership']);
+    final roomId = membership['room_id']?.toString();
+    if (roomId == null || roomId.isEmpty) {
+      throw Exception('Unable to join invited room');
+    }
+    return roomId;
+  }
+
   Future<List<Map<String, dynamic>>> people() async {
     final data = await call('people');
     return List<Map<String, dynamic>>.from(data?['people'] ?? const []);
