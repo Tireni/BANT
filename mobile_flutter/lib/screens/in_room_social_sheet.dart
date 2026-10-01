@@ -49,6 +49,7 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     final person = widget.participant;
     final friendship = state.stateFor(person.id);
 
@@ -61,7 +62,7 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
           children: [
             CircleAvatar(
               radius: 36,
-              backgroundColor: const Color(0xFFE8F4FF),
+              backgroundColor: colors.soft,
               backgroundImage:
                   person.avatarUrl == null ? null : NetworkImage(person.avatarUrl!),
               child: person.avatarUrl == null
@@ -69,8 +70,8 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
                       person.displayName.isEmpty
                           ? 'B'
                           : person.displayName.characters.first.toUpperCase(),
-                      style: const TextStyle(
-                        color: BantTheme.blue,
+                      style: TextStyle(
+                        color: colors.blue,
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                       ),
@@ -80,8 +81,8 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
             const SizedBox(height: 12),
             Text(
               person.displayName,
-              style: const TextStyle(
-                color: BantTheme.text,
+              style: TextStyle(
+                color: colors.text,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -90,8 +91,8 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
               const SizedBox(height: 4),
               Text(
                 '@${person.username}',
-                style: const TextStyle(
-                  color: BantTheme.secondary,
+                style: TextStyle(
+                  color: colors.secondary,
                   fontSize: 13,
                 ),
               ),
@@ -138,10 +139,10 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Text(
+                            Text(
                               'Report participant',
                               style: TextStyle(
-                                color: BantTheme.text,
+                                color: colors.text,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -207,7 +208,7 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
                 if (!context.mounted || !ok) return;
                 Navigator.of(context).pop();
               },
-              icon: const Icon(Icons.block_rounded, color: BantTheme.danger),
+              icon: const Icon(Icons.block_rounded, color: colors.danger),
               label: const Text('Block user'),
             ),
             if (state.error != null) ...[
@@ -215,8 +216,8 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
               Text(
                 state.error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: BantTheme.danger,
+                style: TextStyle(
+                  color: colors.danger,
                   fontWeight: FontWeight.w700,
                 ),
               ),
