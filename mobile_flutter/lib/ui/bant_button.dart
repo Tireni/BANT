@@ -17,29 +17,63 @@ class BantButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+
     return SizedBox(
-      height: 54,
+      height: 50,
       width: double.infinity,
       child: secondary
-          ? OutlinedButton(
+          ? FilledButton(
               onPressed: loading ? null : onPressed,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: BantTheme.border),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.mint,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: colors.soft,
+                disabledForegroundColor: colors.muted,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               child: loading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(label),
             )
           : FilledButton(
               onPressed: loading ? null : onPressed,
               style: FilledButton.styleFrom(
-                backgroundColor: BantTheme.blue,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                backgroundColor: colors.blue,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: colors.soft,
+                disabledForegroundColor: colors.muted,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               child: loading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(label),
             ),
     );
   }
