@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
             .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`),
           userClient
             .from("user_blocks")
-            .select("blocked_id")
+            .select("blocked_id,profiles!user_blocks_blocked_id_fkey(id,display_name,username,bio,avatar_url)")
             .eq("blocker_id", user.id)
         ]);
 
@@ -364,6 +364,9 @@ Deno.serve(async (req) => {
         const people = (profilesResult.data ?? []).filter(
           (row: any) => !blockedIds.has(row.id)
         );
+        const blockedPeople = (blocksResult.data ?? [])
+          .map((row: any) => Array.isArray(row.profiles) ? row.profiles[0] : row.profiles)
+          .filter(Boolean);
         const friendIds = (friendshipsResult.data ?? []).map((row: any) =>
           row.user_a === user.id ? row.user_b : row.user_a
         );
@@ -373,7 +376,8 @@ Deno.serve(async (req) => {
           people,
           friend_ids: friendIds.filter((id: string) => !blockedIds.has(id)),
           incoming_requests: requests.filter((row: any) => row.receiver_id === user.id),
-          outgoing_requests: requests.filter((row: any) => row.sender_id === user.id)
+          outgoing_requests: requests.filter((row: any) => row.sender_id === user.id),
+          blocked_people: blockedPeople
         });
       }
 
@@ -386,6 +390,42 @@ Deno.serve(async (req) => {
           .limit(50);
         if (error) return fail(error);
         return json({ notifications: data ?? [] });
+      }
+
+      case "mark_notifications_read": {
+        const { error } = await userClient
+          .from("notifications")
+          .update({ read_at: new Date().toISOString() })
+          .eq("user_id", user.id)
+          .is("read_at", null);
+        if (error) return fail(error);
+        return json({ updated: true });
+      }
+
+      case "report_user": {
+        const targetId = requireString(body.user_id, "user_id");
+        const reason = typeof body.reason === "string" ? body.reason : "unsafe";
+        const description = typeof body.description === "string"
+          ? body.description.trim().slice(0, 1200)
+          : "";
+        const allowedReasons = new Set(["spam", "harassment", "unsafe", "impersonation", "other"]);
+        if (!allowedReasons.has(reason)) {
+          return json({ error: "Invalid report reason" }, 400);
+        }
+        if (targetId === user.id) {
+          return json({ error: "You cannot report yourself" }, 400);
+        }
+        const { error } = await userClient
+          .from("reports")
+          .insert({
+            reporter_id: user.id,
+            target_type: "user",
+            target_id: targetId,
+            reason,
+            description: description || null
+          });
+        if (error) return fail(error);
+        return json({ submitted: true });
       }
 
       case "messages": {
@@ -448,13 +488,31 @@ Deno.serve(async (req) => {
       case "update_profile": {
         const displayName = requireString(body.display_name, "display_name").trim();
         const username = requireString(body.username, "username").trim().toLowerCase();
-        const bio = typeof body.bio === "string" ? body.bio.trim() : "";
-        const { error } = await userClient
+        const bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 160) : "";
+        const avatarUrl = typeof body.avatar_url === "string" && body.avatar_url.trim()
+          ? body.avatar_url.trim()
+          : null;
+
+        if (displayName.length < 2 || displayName.length > 60) {
+          return json({ error: "Display name must be between 2 and 60 characters" }, 400);
+        }
+        if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+          return json({ error: "Username must be 3-24 characters using lowercase letters, numbers, or underscore." }, 400);
+        }
+
+        const { data, error } = await userClient
           .from("profiles")
-          .update({ display_name: displayName, username, bio: bio || null })
-          .eq("id", user.id);
+          .update({
+            display_name: displayName,
+            username,
+            bio: bio || null,
+            avatar_url: avatarUrl
+          })
+          .eq("id", user.id)
+          .select("id,display_name,username,bio,avatar_url,onboarding_completed,onboarding_step")
+          .single();
         if (error) return fail(error);
-        return json({ updated: true });
+        return json({ profile: data });
       }
 
       case "moderate_room": {
