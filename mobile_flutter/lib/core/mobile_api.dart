@@ -147,6 +147,16 @@ class MobileApi {
     await call('mark_notifications_read');
   }
 
+  Future<void> submitFeedback({
+    required String category,
+    required String message,
+  }) async {
+    await call('submit_feedback', {
+      'category': category,
+      'message': message,
+    });
+  }
+
   Future<void> reportUser({
     required String userId,
     required String reason,
