@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,6 +11,7 @@ import 'models/profile.dart';
 import 'models/room.dart';
 import 'screens/create_room_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/invite_join_screen.dart';
 import 'screens/room_screen.dart';
 import 'screens/rooms_screen.dart';
 import 'state/bant_app_state.dart';
@@ -753,16 +757,71 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
   late final BantAppState appState;
+  late final AppLinks appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
+  String? _lastInviteToken;
 
   @override
   void initState() {
     super.initState();
     appState = BantAppState(widget.api);
     appState.load();
+    appLinks = AppLinks();
+    _startInviteLinks();
+  }
+
+  Future<void> _startInviteLinks() async {
+    try {
+      final initial = await appLinks.getInitialLink();
+      if (initial != null) {
+        _handleInviteUri(initial);
+      }
+    } catch (_) {}
+
+    _linkSubscription = appLinks.uriLinkStream.listen(
+      _handleInviteUri,
+      onError: (_) {},
+    );
+  }
+
+  String? _inviteTokenFromUri(Uri uri) {
+    if (uri.scheme == 'bant' && uri.host == 'invite') {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
+    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host == 'bant-demo.vercel.app' &&
+        uri.pathSegments.length >= 2 &&
+        uri.pathSegments.first == 'r') {
+      return uri.pathSegments[1];
+    }
+    return null;
+  }
+
+  Future<void> _handleInviteUri(Uri uri) async {
+    final token = _inviteTokenFromUri(uri);
+    if (token == null || token.isEmpty || token == _lastInviteToken) return;
+    _lastInviteToken = token;
+
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final room = await Navigator.of(context).push<BantRoom>(
+        MaterialPageRoute(
+          builder: (_) => InviteJoinScreen(
+            api: widget.api,
+            token: token,
+          ),
+        ),
+      );
+      if (!mounted || room == null) return;
+      await appState.refreshRooms();
+      openRoom(room);
+    });
   }
 
   @override
   void dispose() {
+    _linkSubscription?.cancel();
     appState.dispose();
     super.dispose();
   }
