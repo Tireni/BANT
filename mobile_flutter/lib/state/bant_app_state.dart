@@ -23,15 +23,11 @@ class BantAppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final results = await Future.wait([
-        api.feed(),
-        api.notifications(),
-      ]);
+      final roomRows = await api.feed();
+      final notificationRows = await api.notifications();
 
-      rooms = (results[0] as List<Map<String, dynamic>>)
-          .map(BantRoom.fromJson)
-          .toList();
-      notifications = List<Map<String, dynamic>>.from(results[1]);
+      rooms = roomRows.map(BantRoom.fromJson).toList();
+      notifications = List<Map<String, dynamic>>.from(notificationRows);
     } catch (e) {
       error = e.toString();
     } finally {
