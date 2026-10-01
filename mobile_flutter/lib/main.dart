@@ -1009,6 +1009,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     final pages = [
       BantHomeScreen(
         state: appState,
@@ -1041,29 +1042,29 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         height: 68,
-        backgroundColor: BantTheme.surface,
-        indicatorColor: const Color(0xFFE8F4FF),
+        backgroundColor: colors.surface,
+        indicatorColor: colors.soft,
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded, color: BantTheme.blue),
+            selectedIcon: Icon(Icons.home_rounded),
             label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.forum_outlined),
-            selectedIcon: Icon(Icons.forum_rounded, color: BantTheme.blue),
+            selectedIcon: Icon(Icons.forum_rounded),
             label: 'Rooms',
           ),
           NavigationDestination(
             icon: Icon(Icons.people_outline_rounded),
-            selectedIcon: Icon(Icons.people_rounded, color: BantTheme.blue),
+            selectedIcon: Icon(Icons.people_rounded),
             label: 'People',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded, color: BantTheme.blue),
+            selectedIcon: Icon(Icons.person_rounded),
             label: 'Profile',
           ),
         ],
