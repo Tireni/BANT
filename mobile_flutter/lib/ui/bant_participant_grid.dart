@@ -7,12 +7,18 @@ class BantParticipantGrid extends StatelessWidget {
   final List<BantParticipant> participants;
   final String ownerId;
   final String currentUserId;
+  final Set<String> connectedVoiceUserIds;
+  final Set<String> activeSpeakerIds;
+  final Set<String> mutedVoiceUserIds;
 
   const BantParticipantGrid({
     super.key,
     required this.participants,
     required this.ownerId,
     required this.currentUserId,
+    this.connectedVoiceUserIds = const <String>{},
+    this.activeSpeakerIds = const <String>{},
+    this.mutedVoiceUserIds = const <String>{},
   });
 
   @override
@@ -41,16 +47,22 @@ class BantParticipantGrid extends StatelessWidget {
                 person.role == 'owner' ||
                 person.role == 'host';
             final isCurrentUser = person.id == currentUserId;
+            final voiceConnected = connectedVoiceUserIds.contains(person.id);
+            final activelySpeaking = activeSpeakerIds.contains(person.id);
+            final voiceMuted =
+                person.muted || mutedVoiceUserIds.contains(person.id);
 
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
                 border: Border.all(
-                  color: isCurrentUser
-                      ? BantTheme.blue
-                      : BantTheme.border,
-                  width: isCurrentUser ? 1.5 : 1,
+                  color: activelySpeaking
+                      ? BantTheme.mint
+                      : isCurrentUser
+                          ? BantTheme.blue
+                          : BantTheme.border,
+                  width: activelySpeaking || isCurrentUser ? 1.8 : 1,
                 ),
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -88,18 +100,22 @@ class BantParticipantGrid extends StatelessWidget {
                           height: 22,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: person.muted
+                            color: voiceMuted
                                 ? BantTheme.danger
-                                : const Color(0xFFE4E7EC),
+                                : voiceConnected
+                                    ? BantTheme.mint
+                                    : const Color(0xFFE4E7EC),
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 2),
                           ),
                           child: Icon(
-                            person.muted
+                            voiceMuted
                                 ? Icons.mic_off_rounded
-                                : Icons.mic_none_rounded,
+                                : voiceConnected
+                                    ? Icons.graphic_eq_rounded
+                                    : Icons.mic_none_rounded,
                             size: 12,
-                            color: person.muted
+                            color: voiceMuted || voiceConnected
                                 ? Colors.white
                                 : BantTheme.secondary,
                           ),
@@ -134,6 +150,20 @@ class BantParticipantGrid extends StatelessWidget {
                       ),
                       if (isCurrentUser)
                         const _RoleBadge(label: 'YOU'),
+                      _RoleBadge(
+                        label: voiceMuted
+                            ? 'MUTED'
+                            : activelySpeaking
+                                ? 'TALKING'
+                                : voiceConnected
+                                    ? 'VOICE'
+                                    : 'OFFLINE',
+                        color: voiceMuted
+                            ? BantTheme.danger
+                            : activelySpeaking || voiceConnected
+                                ? BantTheme.mint
+                                : BantTheme.secondary,
+                      ),
                     ],
                   ),
                 ],
@@ -149,10 +179,12 @@ class BantParticipantGrid extends StatelessWidget {
 class _RoleBadge extends StatelessWidget {
   final String label;
   final bool owner;
+  final Color? color;
 
   const _RoleBadge({
     required this.label,
     this.owner = false,
+    this.color,
   });
 
   @override
@@ -162,13 +194,13 @@ class _RoleBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: owner
             ? const Color(0xFFFFF4E5)
-            : const Color(0xFFE8F4FF),
+            : (color ?? BantTheme.blue).withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: owner ? const Color(0xFFB54708) : BantTheme.blue,
+          color: owner ? const Color(0xFFB54708) : (color ?? BantTheme.blue),
           fontSize: 8,
           fontWeight: FontWeight.w900,
         ),
