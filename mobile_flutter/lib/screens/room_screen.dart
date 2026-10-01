@@ -704,8 +704,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                             ),
                                           )
                                         else if (chat.messages.isEmpty)
-                                          const Padding(
-                                            padding: EdgeInsets.symmetric(
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
                                               vertical: 10,
                                             ),
                                             child: Text(
