@@ -40,7 +40,7 @@ class BantHomeScreen extends StatelessWidget {
           onRefresh: state.refreshRooms,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
             children: [
               BantBrandHeader(
                 profile: profile,
