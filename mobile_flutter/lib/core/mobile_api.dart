@@ -96,6 +96,10 @@ class MobileApi {
     await call('leave_room', {'room_id': roomId});
   }
 
+  Future<void> endRoom(String roomId) async {
+    await call('end_room', {'room_id': roomId});
+  }
+
   Future<Map<String, dynamic>> createInvite(String roomId) async {
     final data = await call('create_invite', {'room_id': roomId});
     return Map<String, dynamic>.from(data['invite']);
