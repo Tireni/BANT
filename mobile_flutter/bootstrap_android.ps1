@@ -36,7 +36,7 @@ if ($xml -notmatch 'android:scheme="bant"') {
                 <data android:scheme="bant" android:host="auth-callback"/>
             </intent-filter>
 '@
-  $xml = $xml -replace '(</activity>)', ($intent + '        </activity>'), 1
+  $xml = $xml -replace '</activity>', ($intent + '        </activity>')
 }
 
 Set-Content -Path $manifest -Value $xml -Encoding UTF8
