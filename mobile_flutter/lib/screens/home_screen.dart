@@ -26,6 +26,8 @@ class BantHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+
     return AnimatedBuilder(
       animation: state,
       builder: (context, _) {
@@ -37,10 +39,11 @@ class BantHomeScreen extends StatelessWidget {
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
         return RefreshIndicator(
+          color: colors.blue,
           onRefresh: state.refreshRooms,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
             children: [
               BantBrandHeader(
                 profile: profile,
@@ -50,32 +53,37 @@ class BantHomeScreen extends StatelessWidget {
               const SizedBox(height: 26),
               Text(
                 "What's happening, ${profile.displayName.split(' ').first}?",
-                style: const TextStyle(
-                  color: BantTheme.text,
+                style: TextStyle(
+                  color: colors.text,
                   fontSize: 28,
-                  height: 1.2,
-                  fontWeight: FontWeight.w900,
+                  height: 34 / 28,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Find the room for your mood.',
                 style: TextStyle(
-                  color: BantTheme.secondary,
+                  color: colors.secondary,
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 28),
-              const _SectionLabel('LIVE NOW'),
+              const SizedBox(height: 26),
+              _SectionLabel('LIVE NOW', color: colors.muted),
               const SizedBox(height: 12),
               if (state.loading && state.rooms.isEmpty)
-                const SizedBox(
+                SizedBox(
                   height: 170,
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(
+                    child: CircularProgressIndicator(color: colors.blue),
+                  ),
                 )
               else if (liveNow.isEmpty)
-                _EmptyRooms(onStartRoom: onStartRoom)
+                _EmptyRooms(
+                  onStartRoom: onStartRoom,
+                  colors: colors,
+                )
               else
                 SizedBox(
                   height: 205,
@@ -93,12 +101,23 @@ class BantHomeScreen extends StatelessWidget {
                     },
                   ),
                 ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 26),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: BantTheme.blue,
+                  color: colors.blue,
                   borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: Theme.of(context).brightness == Brightness.dark
+                            ? 0.28
+                            : 0.08,
+                      ),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,20 +127,20 @@ class BantHomeScreen extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 21,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     const Text(
                       'Start a room and invite people who get it.',
                       style: TextStyle(
-                        color: Color(0xFFDDEFFF),
+                        color: Color(0xDBFFFFFF),
                         fontSize: 14,
-                        height: 1.4,
+                        height: 20 / 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     BantButton(
                       label: 'Start a room',
                       secondary: true,
@@ -130,8 +149,8 @@ class BantHomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
-              const _SectionLabel('POPULAR'),
+              const SizedBox(height: 26),
+              _SectionLabel('POPULAR', color: colors.muted),
               const SizedBox(height: 12),
               for (final room in popular.take(6)) ...[
                 BantRoomCard(
@@ -140,8 +159,8 @@ class BantHomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-              const SizedBox(height: 16),
-              const _SectionLabel('NEW'),
+              const SizedBox(height: 14),
+              _SectionLabel('NEW', color: colors.muted),
               const SizedBox(height: 12),
               for (final room in newest.take(6)) ...[
                 BantRoomCard(
@@ -154,8 +173,8 @@ class BantHomeScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   state.error!,
-                  style: const TextStyle(
-                    color: BantTheme.danger,
+                  style: TextStyle(
+                    color: colors.danger,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -170,17 +189,19 @@ class BantHomeScreen extends StatelessWidget {
 
 class _SectionLabel extends StatelessWidget {
   final String label;
-  const _SectionLabel(this.label);
+  final Color color;
+
+  const _SectionLabel(this.label, {required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(
-        color: Color(0xFF98A2B3),
+      style: TextStyle(
+        color: color,
         fontSize: 12,
         letterSpacing: 1.2,
-        fontWeight: FontWeight.w900,
+        fontWeight: FontWeight.w800,
       ),
     );
   }
@@ -188,30 +209,35 @@ class _SectionLabel extends StatelessWidget {
 
 class _EmptyRooms extends StatelessWidget {
   final VoidCallback onStartRoom;
-  const _EmptyRooms({required this.onStartRoom});
+  final BantPalette colors;
+
+  const _EmptyRooms({
+    required this.onStartRoom,
+    required this.colors,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: BantTheme.surface,
-        border: Border.all(color: BantTheme.border),
+        color: colors.surface,
+        border: Border.all(color: colors.border),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
-          const Text(
+          Text(
             'Nothing live right now.',
             style: TextStyle(
-              color: BantTheme.text,
-              fontWeight: FontWeight.w900,
+              color: colors.text,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Start a room.',
-            style: TextStyle(color: BantTheme.secondary),
+            style: TextStyle(color: colors.secondary),
           ),
           const SizedBox(height: 14),
           BantButton(
