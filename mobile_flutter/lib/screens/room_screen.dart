@@ -803,6 +803,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                             role: currentMembership?.role ?? 'speaker',
                             voiceStatus: voice.status,
                             muted: voice.muted,
+                            adminMuted: voice.adminMuted,
                             speakerOn: voice.speakerOn,
                             onVoice: () async {
                               if (voice.status == BantVoiceStatus.error ||
@@ -1024,6 +1025,7 @@ class _RoomControls extends StatelessWidget {
   final String role;
   final BantVoiceStatus voiceStatus;
   final bool muted;
+  final bool adminMuted;
   final bool speakerOn;
   final Future<void> Function() onVoice;
   final Future<void> Function() onSpeaker;
@@ -1036,6 +1038,7 @@ class _RoomControls extends StatelessWidget {
     required this.role,
     required this.voiceStatus,
     required this.muted,
+    required this.adminMuted,
     required this.speakerOn,
     required this.onVoice,
     required this.onSpeaker,
@@ -1062,7 +1065,7 @@ class _RoomControls extends StatelessWidget {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: connecting ? null : onVoice,
+                onPressed: connecting || adminMuted ? null : onVoice,
                 icon: Icon(
                   listener
                       ? Icons.headphones_rounded
@@ -1075,11 +1078,13 @@ class _RoomControls extends StatelessWidget {
                 label: Text(
                   connecting
                       ? 'Joining'
-                      : listener
-                          ? (connected ? 'Listening' : 'Listen')
-                          : muted
-                              ? 'Unmute'
-                              : 'Mute',
+                      : adminMuted
+                          ? 'Host muted'
+                          : listener
+                              ? (connected ? 'Listening' : 'Listen')
+                              : muted
+                                  ? 'Unmute'
+                                  : 'Mute',
                 ),
               ),
             ),
