@@ -146,3 +146,16 @@ Write-Host "Supabase redirect URL required: bant://auth-callback"
 Write-Host ""
 Write-Host "Run:"
 Write-Host 'flutter run --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY'
+
+
+# Mirror the canonical BANT brand asset from the web app into Flutter.
+$brandDir = Join-Path $PSScriptRoot "assets\brand"
+New-Item -ItemType Directory -Force -Path $brandDir | Out-Null
+$webMascot = Join-Path (Split-Path $PSScriptRoot -Parent) "assets\brand\bant-mascot.png"
+$flutterMascot = Join-Path $brandDir "bant-mascot.png"
+if (Test-Path $webMascot) {
+  Copy-Item $webMascot $flutterMascot -Force
+  Write-Host "Copied canonical BANT mascot into Flutter assets."
+} else {
+  Write-Warning "Canonical BANT mascot was not found at $webMascot"
+}
