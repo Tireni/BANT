@@ -111,7 +111,7 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
                       onTap: () => setState(() => tab = item),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 140),
-                        minHeight: 42,
+                        constraints: const BoxConstraints(minHeight: 42),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: tab == item ? BantTheme.blue : null,
