@@ -993,7 +993,7 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ),
       bottomNavigationBar: NavigationBar(
-        height: 72,
+        height: 68,
         backgroundColor: BantTheme.surface,
         indicatorColor: const Color(0xFFE8F4FF),
         selectedIndex: index,
