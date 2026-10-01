@@ -100,15 +100,16 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     final title = preview?['room_title']?.toString() ?? 'Room invite';
     final category = preview?['room_category']?.toString();
     final privacy = preview?['room_privacy']?.toString();
     final description = preview?['room_description']?.toString();
 
     return Scaffold(
-      backgroundColor: BantTheme.background,
+      backgroundColor: colors.background,
       appBar: AppBar(
-        backgroundColor: BantTheme.background,
+        backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -126,8 +127,8 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: BantTheme.surface,
-                  border: Border.all(color: BantTheme.border),
+                  color: colors.surface,
+                  border: Border.all(color: colors.border),
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
@@ -136,10 +137,10 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                     if (loading || joining)
                       const CircularProgressIndicator(),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'BANT ROOM INVITE',
                       style: TextStyle(
-                        color: BantTheme.blue,
+                        color: colors.blue,
                         fontSize: 11,
                         letterSpacing: 1.2,
                         fontWeight: FontWeight.w900,
@@ -149,8 +150,8 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                     Text(
                       title,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: BantTheme.text,
+                      style: TextStyle(
+                        color: colors.text,
                         fontSize: 28,
                         height: 1.2,
                         fontWeight: FontWeight.w900,
@@ -160,8 +161,8 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                       const SizedBox(height: 8),
                       Text(
                         '$category · ${privacy == 'private' ? 'Private room' : 'Public room'}',
-                        style: const TextStyle(
-                          color: BantTheme.secondary,
+                        style: TextStyle(
+                          color: colors.secondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -173,18 +174,18 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                           ? 'Join the conversation on BANT.'
                           : description,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: BantTheme.secondary,
+                      style: TextStyle(
+                        color: colors.secondary,
                         fontSize: 14,
                         height: 1.5,
                       ),
                     ),
                     const SizedBox(height: 16),
                     if (joining)
-                      const Text(
+                      Text(
                         'Joining you to the room...',
                         style: TextStyle(
-                          color: BantTheme.mint,
+                          color: colors.mint,
                           fontWeight: FontWeight.w800,
                         ),
                       )
@@ -192,8 +193,8 @@ class _InviteJoinScreenState extends State<InviteJoinScreen> {
                       Text(
                         error!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: BantTheme.danger,
+                        style: TextStyle(
+                          color: colors.danger,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
