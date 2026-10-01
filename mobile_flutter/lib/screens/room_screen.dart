@@ -431,12 +431,13 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     final room = detail;
 
     return Scaffold(
-      backgroundColor: BantTheme.background,
+      backgroundColor: colors.background,
       appBar: AppBar(
-        backgroundColor: BantTheme.background,
+        backgroundColor: colors.background,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           onPressed: leaving ? null : _leaveOrEnd,
@@ -450,8 +451,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
               room?.title ?? widget.room.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: BantTheme.text,
+              style: TextStyle(
+                color: colors.text,
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
               ),
@@ -459,8 +460,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
             if (room != null)
               Text(
                 '${room.category} · ${room.participantCount} / ${room.maxParticipants}',
-                style: const TextStyle(
-                  color: BantTheme.secondary,
+                style: TextStyle(
+                  color: colors.secondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -473,13 +474,13 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
               margin: const EdgeInsets.only(right: 4),
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF4E5),
+                color: colors.warning.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: const Text(
+              child: Text(
                 'HOST',
                 style: TextStyle(
-                  color: Color(0xFFB54708),
+                  color: colors.warning,
                   fontSize: 9,
                   fontWeight: FontWeight.w900,
                 ),
@@ -527,22 +528,22 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                         vertical: 9,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFE8F4FF),
+                                        color: colors.soft,
                                         borderRadius: BorderRadius.circular(14),
                                       ),
                                       child: Row(
                                         children: [
-                                          const Icon(
+                                          Icon(
                                             Icons.bolt_rounded,
                                             size: 16,
-                                            color: BantTheme.blue,
+                                            color: colors.blue,
                                           ),
                                           const SizedBox(width: 7),
                                           Expanded(
                                             child: Text(
                                               roomActivity!,
-                                              style: const TextStyle(
-                                                color: BantTheme.blue,
+                                              style: TextStyle(
+                                                color: colors.blue,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w800,
                                               ),
@@ -618,10 +619,10 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                         const _SectionLabel('ROOM'),
                                         const SizedBox(height: 12),
                                         if (room.participants.isEmpty)
-                                          const Text(
+                                          Text(
                                             'No active participants yet.',
                                             style: TextStyle(
-                                              color: BantTheme.secondary,
+                                              color: colors.secondary,
                                             ),
                                           )
                                         else
@@ -650,7 +651,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                                 context: context,
                                                 isScrollControlled: true,
                                                 backgroundColor:
-                                                    BantTheme.surface,
+                                                    colors.surface,
                                                 shape:
                                                     const RoundedRectangleBorder(
                                                   borderRadius:
@@ -696,7 +697,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                                 Text(
                                                   'Loading messages...',
                                                   style: TextStyle(
-                                                    color: BantTheme.secondary,
+                                                    color: colors.secondary,
                                                   ),
                                                 ),
                                               ],
@@ -710,7 +711,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                             child: Text(
                                               'No messages yet. Start the room chat.',
                                               style: TextStyle(
-                                                color: BantTheme.secondary,
+                                                color: colors.secondary,
                                               ),
                                             ),
                                           )
@@ -733,8 +734,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                               Expanded(
                                                 child: Text(
                                                   chat.error!,
-                                                  style: const TextStyle(
-                                                    color: BantTheme.danger,
+                                                  style: TextStyle(
+                                                    color: colors.danger,
                                                     fontSize: 12,
                                                     fontWeight:
                                                         FontWeight.w700,
@@ -794,7 +795,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                                           color: Colors.white,
                                                         ),
                                                       )
-                                                    : const Icon(
+                                                    : Icon(
                                                         Icons.send_rounded,
                                                       ),
                                               ),
@@ -808,8 +809,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                     const SizedBox(height: 14),
                                     Text(
                                       moderation.error!,
-                                      style: const TextStyle(
-                                        color: BantTheme.danger,
+                                      style: TextStyle(
+                                        color: colors.danger,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -818,8 +819,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                     const SizedBox(height: 14),
                                     Text(
                                       error!,
-                                      style: const TextStyle(
-                                        color: BantTheme.danger,
+                                      style: TextStyle(
+                                        color: colors.danger,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -860,7 +861,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                               showModalBottomSheet<void>(
                                 context: context,
                                 isScrollControlled: true,
-                                backgroundColor: BantTheme.surface,
+                                backgroundColor: colors.surface,
                                 shape: const RoundedRectangleBorder(
                                   borderRadius: BorderRadius.vertical(
                                     top: Radius.circular(24),
@@ -910,6 +911,7 @@ class _RoomIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     final roleLabel = currentRole == 'owner' || currentRole == 'host'
         ? 'OWNER'
         : currentRole.toUpperCase();
@@ -928,11 +930,11 @@ class _RoomIntro extends StatelessWidget {
                     ? Icons.lock_outline_rounded
                     : Icons.public_rounded,
                 size: 16,
-                color: BantTheme.blue,
+                color: colors.blue,
               ),
               _Pill(
                 label: room.privacy == 'private' ? 'Private' : 'Public',
-                color: BantTheme.blue,
+                color: colors.blue,
               ),
               _Pill(
                 label: roleLabel,
@@ -941,9 +943,9 @@ class _RoomIntro extends StatelessWidget {
                     : BantTheme.blue,
               ),
               if (room.noiseControlEnabled)
-                const _Pill(
+                _Pill(
                   label: 'Noise Control 🤫',
-                  color: Color(0xFFB54708),
+                  color: colors.warning,
                 ),
             ],
           ),
@@ -952,8 +954,8 @@ class _RoomIntro extends StatelessWidget {
             room.description.isEmpty
                 ? 'Live room discussion.'
                 : room.description,
-            style: const TextStyle(
-              color: BantTheme.secondary,
+            style: TextStyle(
+              color: colors.secondary,
               fontSize: 14,
               height: 1.5,
             ),
@@ -961,31 +963,31 @@ class _RoomIntro extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.people_outline_rounded,
                 size: 17,
-                color: BantTheme.blue,
+                color: colors.blue,
               ),
               const SizedBox(width: 5),
               Text(
                 '${room.participantCount} / ${room.maxParticipants} participants',
-                style: const TextStyle(
-                  color: BantTheme.secondary,
+                style: TextStyle(
+                  color: colors.secondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(width: 14),
-              const Icon(
+              Icon(
                 Icons.record_voice_over_outlined,
                 size: 17,
-                color: BantTheme.mint,
+                color: colors.mint,
               ),
               const SizedBox(width: 5),
               Text(
                 '${room.speakerCount} speaker${room.speakerCount == 1 ? '' : 's'}',
-                style: const TextStyle(
-                  color: BantTheme.secondary,
+                style: TextStyle(
+                  color: colors.secondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1086,6 +1088,7 @@ class _RoomControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     final listener = role == 'listener';
     final connected = voiceStatus == BantVoiceStatus.connected;
     final connecting = voiceStatus == BantVoiceStatus.connecting ||
@@ -1094,8 +1097,8 @@ class _RoomControls extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
       decoration: const BoxDecoration(
-        color: BantTheme.surface,
-        border: Border(top: BorderSide(color: BantTheme.border)),
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
       ),
       child: SafeArea(
         top: false,
@@ -1182,6 +1185,7 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -1226,11 +1230,12 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: BantTheme.surface,
-        border: Border.all(color: BantTheme.border),
+        color: colors.surface,
+        border: Border.all(color: colors.border),
         borderRadius: BorderRadius.circular(22),
       ),
       child: child,
@@ -1274,10 +1279,11 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Text(
       label,
-      style: const TextStyle(
-        color: Color(0xFF98A2B3),
+      style: TextStyle(
+        color: colors.muted,
         fontSize: 12,
         letterSpacing: 1.2,
         fontWeight: FontWeight.w900,
@@ -1293,6 +1299,7 @@ class _LoadingRoom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1317,6 +1324,7 @@ class _RoomError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -1325,17 +1333,17 @@ class _RoomError extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline_rounded,
                 size: 44,
-                color: BantTheme.danger,
+                color: colors.danger,
               ),
               const SizedBox(height: 12),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: BantTheme.text,
+                style: TextStyle(
+                  color: colors.text,
                   fontWeight: FontWeight.w700,
                 ),
               ),
