@@ -402,6 +402,27 @@ Deno.serve(async (req) => {
         return json({ updated: true });
       }
 
+      case "submit_feedback": {
+        const category = typeof body.category === "string" ? body.category : "suggestion";
+        const message = requireString(body.message, "message").trim();
+        const allowedCategories = new Set(["bug", "feature", "suggestion", "complaint", "other"]);
+        if (!allowedCategories.has(category)) {
+          return json({ error: "Invalid feedback category" }, 400);
+        }
+        if (message.length < 5 || message.length > 1200) {
+          return json({ error: "Feedback must be between 5 and 1200 characters" }, 400);
+        }
+        const { error } = await userClient
+          .from("feedback")
+          .insert({
+            user_id: user.id,
+            category,
+            message
+          });
+        if (error) return fail(error);
+        return json({ submitted: true });
+      }
+
       case "report_user": {
         const targetId = requireString(body.user_id, "user_id");
         const reason = typeof body.reason === "string" ? body.reason : "unsafe";
