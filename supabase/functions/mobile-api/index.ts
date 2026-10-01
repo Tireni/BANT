@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { GoogleAuth } from "npm:google-auth-library@9.15.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -244,6 +245,42 @@ Deno.serve(async (req) => {
           p_noise_control_enabled: noise
         });
         if (error) return fail(error);
+
+        const createdRoom = Array.isArray(data) ? data[0] ?? null : data;
+        if (privacy === "public" && createdRoom?.id) {
+          try {
+            const [{ data: friendships }, { data: actor }] = await Promise.all([
+              admin
+                .from("friendships")
+                .select("user_a,user_b")
+                .or(`user_a.eq.${user.id},user_b.eq.${user.id}`),
+              admin
+                .from("profiles")
+                .select("display_name,username")
+                .eq("id", user.id)
+                .maybeSingle()
+            ]);
+
+            const friendIds = [...new Set((friendships ?? []).map((row: any) =>
+              row.user_a === user.id ? row.user_b : row.user_a
+            ).filter(Boolean))];
+
+            if (friendIds.length) {
+              const actorName = actor?.display_name ?? actor?.username ?? "Your friend";
+              await sendPushToUsers(admin, friendIds, {
+                title: "A friend started a BANT room",
+                body: `${actorName} started “${title}”. Tap to join.`,
+                data: {
+                  type: "room_started",
+                  room_id: String(createdRoom.id)
+                }
+              });
+            }
+          } catch (pushError) {
+            console.error("Room push notification failed", pushError);
+          }
+        }
+
         return json({ room: data });
       }
 
@@ -381,6 +418,37 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "register_push_token": {
+        const token = requireString(body.token, "token").trim();
+        const platform = body.platform === "ios"
+          ? "ios"
+          : body.platform === "android"
+            ? "android"
+            : "other";
+
+        const { error } = await admin
+          .from("device_push_tokens")
+          .upsert({
+            user_id: user.id,
+            token,
+            platform,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "token" });
+        if (error) return fail(error);
+        return json({ registered: true });
+      }
+
+      case "unregister_push_token": {
+        const token = requireString(body.token, "token").trim();
+        const { error } = await admin
+          .from("device_push_tokens")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("token", token);
+        if (error) return fail(error);
+        return json({ unregistered: true });
+      }
+
       case "notifications": {
         const { data, error } = await userClient
           .from("notifications")
@@ -485,14 +553,71 @@ Deno.serve(async (req) => {
         return json({ message: data });
       }
 
-      case "send_friend_request":
-        return rpcBoolean(userClient, "send_friend_request", {
-          p_receiver_id: requireString(body.user_id, "user_id")
+      case "send_friend_request": {
+        const receiverId = requireString(body.user_id, "user_id");
+        const { data, error } = await userClient.rpc("send_friend_request", {
+          p_receiver_id: receiverId
         });
-      case "accept_friend_request":
-        return rpcBoolean(userClient, "accept_friend_request", {
-          p_request_id: requireString(body.request_id, "request_id")
+        if (error) return fail(error);
+
+        try {
+          const { data: actor } = await admin
+            .from("profiles")
+            .select("display_name,username")
+            .eq("id", user.id)
+            .maybeSingle();
+          const actorName = actor?.display_name ?? actor?.username ?? "Someone";
+          await sendPushToUsers(admin, [receiverId], {
+            title: "New BANT friend request",
+            body: `${actorName} sent you a friend request.`,
+            data: {
+              type: "friend_request",
+              actor_id: user.id
+            }
+          });
+        } catch (pushError) {
+          console.error("Friend request push notification failed", pushError);
+        }
+
+        return json({ result: data ?? true });
+      }
+
+      case "accept_friend_request": {
+        const requestId = requireString(body.request_id, "request_id");
+        const { data: request } = await admin
+          .from("friend_requests")
+          .select("sender_id,receiver_id")
+          .eq("id", requestId)
+          .maybeSingle();
+
+        const { data, error } = await userClient.rpc("accept_friend_request", {
+          p_request_id: requestId
         });
+        if (error) return fail(error);
+
+        if (request?.sender_id && request.receiver_id === user.id) {
+          try {
+            const { data: actor } = await admin
+              .from("profiles")
+              .select("display_name,username")
+              .eq("id", user.id)
+              .maybeSingle();
+            const actorName = actor?.display_name ?? actor?.username ?? "Your friend";
+            await sendPushToUsers(admin, [request.sender_id], {
+              title: "Friend request accepted",
+              body: `${actorName} accepted your friend request.`,
+              data: {
+                type: "friend_request_accepted",
+                actor_id: user.id
+              }
+            });
+          } catch (pushError) {
+            console.error("Friend acceptance push notification failed", pushError);
+          }
+        }
+
+        return json({ result: data ?? true });
+      }
       case "decline_friend_request":
         return rpcBoolean(userClient, "decline_friend_request", {
           p_request_id: requireString(body.request_id, "request_id")
@@ -572,6 +697,108 @@ Deno.serve(async (req) => {
     return json({ error: error instanceof Error ? error.message : "Mobile API failed" }, 500);
   }
 });
+
+
+type PushPayload = {
+  title: string;
+  body: string;
+  data: Record<string, string>;
+};
+
+async function sendPushToUsers(
+  admin: any,
+  userIds: string[],
+  payload: PushPayload
+) {
+  const projectId = Deno.env.get("FIREBASE_PROJECT_ID");
+  const clientEmail = Deno.env.get("FIREBASE_CLIENT_EMAIL");
+  const rawPrivateKey = Deno.env.get("FIREBASE_PRIVATE_KEY");
+
+  if (!projectId || !clientEmail || !rawPrivateKey || !userIds.length) {
+    return;
+  }
+
+  const { data: tokenRows, error: tokenError } = await admin
+    .from("device_push_tokens")
+    .select("token")
+    .in("user_id", userIds);
+
+  if (tokenError) throw tokenError;
+
+  const tokens = [...new Set((tokenRows ?? [])
+    .map((row: any) => row.token)
+    .filter((token: unknown) => typeof token === "string" && token.length > 0))];
+
+  if (!tokens.length) return;
+
+  const auth = new GoogleAuth({
+    credentials: {
+      client_email: clientEmail,
+      private_key: rawPrivateKey.replace(/\\n/g, "\n")
+    },
+    scopes: ["https://www.googleapis.com/auth/firebase.messaging"]
+  });
+
+  const authClient = await auth.getClient();
+  const accessTokenResult = await authClient.getAccessToken();
+  const accessToken = typeof accessTokenResult === "string"
+    ? accessTokenResult
+    : accessTokenResult?.token;
+
+  if (!accessToken) {
+    throw new Error("Unable to authorize Firebase Cloud Messaging");
+  }
+
+  await Promise.allSettled(tokens.map(async (token) => {
+    const response = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: {
+            token,
+            notification: {
+              title: payload.title,
+              body: payload.body
+            },
+            data: payload.data,
+            android: {
+              priority: "high",
+              notification: {
+                channel_id: "bant_social",
+                sound: "default"
+              }
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: "default",
+                  badge: 1
+                }
+              }
+            }
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const responseBody = await response.text();
+      console.error("FCM send failed", response.status, responseBody);
+
+      if (response.status === 404 || responseBody.includes("UNREGISTERED")) {
+        await admin
+          .from("device_push_tokens")
+          .delete()
+          .eq("token", token);
+      }
+    }
+  }));
+}
 
 async function rpcBoolean(client: any, fn: string, args: Record<string, unknown>) {
   const { data, error } = await client.rpc(fn, args);
