@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 @immutable
@@ -197,6 +198,27 @@ class BantTheme {
       ),
       dividerColor: colors.border,
       cardColor: colors.surface,
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.background,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: colors.text,
+        titleTextStyle: GoogleFonts.plusJakartaSans(
+          color: colors.text,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+        ),
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: brightness == Brightness.dark
+              ? Brightness.light
+              : Brightness.dark,
+          statusBarBrightness: brightness,
+          systemNavigationBarColor: colors.surface,
+          systemNavigationBarIconBrightness: brightness == Brightness.dark
+              ? Brightness.light
+              : Brightness.dark,
+        ),
+      ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: colors.surface,
         modalBackgroundColor: colors.surface,
