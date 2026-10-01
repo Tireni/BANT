@@ -41,6 +41,19 @@ if ($xml -notmatch 'android:scheme="bant"') {
 
 Set-Content -Path $manifest -Value $xml -Encoding UTF8
 
+$widgetTest = @'
+import 'package:flutter_test/flutter_test.dart';
+import 'package:bant_mobile/main.dart';
+
+void main() {
+  testWidgets('BANT app class is available', (WidgetTester tester) async {
+    expect(const BantMobileApp(), isNotNull);
+  });
+}
+'@
+New-Item -ItemType Directory -Force -Path "test" | Out-Null
+Set-Content -Path "test/widget_test.dart" -Value $widgetTest -Encoding UTF8
+
 flutter pub get
 flutter analyze
 
