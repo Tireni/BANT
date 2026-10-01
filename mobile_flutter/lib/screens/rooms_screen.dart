@@ -1,32 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/room_options.dart';
 import '../models/room.dart';
 import '../state/bant_app_state.dart';
 import '../ui/bant_room_card.dart';
 import '../ui/bant_theme.dart';
 
-const bantRoomCategories = <String>[
-  'Feed',
-  'Gaming',
-  'Anime',
-  'Art',
-  'Philosophy',
-  'Music',
-  'Technology',
-  'Movies',
-  'Sports',
-  'Books',
-  'Fashion',
-  'Culture',
-  'Relationships',
-  'Business',
-  'Comedy',
-  'Science',
-  'Lifestyle',
-  'Food',
-  'Travel',
-  'General',
-];
 
 class BantRoomsScreen extends StatefulWidget {
   final BantAppState state;
