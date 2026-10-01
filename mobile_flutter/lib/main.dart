@@ -8,6 +8,9 @@ import 'core/mobile_api.dart';
 import 'core/voice_service.dart';
 import 'models/profile.dart';
 import 'models/room.dart';
+import 'screens/home_screen.dart';
+import 'screens/rooms_screen.dart';
+import 'state/bant_app_state.dart';
 import 'ui/bant_button.dart';
 import 'ui/bant_theme.dart';
 
@@ -747,139 +750,96 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
+  late final BantAppState appState;
+
+  @override
+  void initState() {
+    super.initState();
+    appState = BantAppState(widget.api);
+    appState.load();
+  }
+
+  @override
+  void dispose() {
+    appState.dispose();
+    super.dispose();
+  }
+
+  void openRoom(BantRoom room) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoomScreen(
+          api: widget.api,
+          room: room,
+        ),
+      ),
+    );
+  }
+
+  void startRoom() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Create Room is the next Android batch. Feed and Rooms are ready for testing first.',
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      FeedScreen(api: widget.api, title: 'For You', profile: widget.profile),
-      FeedScreen(api: widget.api, title: 'Live Rooms', profile: widget.profile),
+      BantHomeScreen(
+        state: appState,
+        profile: widget.profile,
+        onOpenRoom: openRoom,
+        onStartRoom: startRoom,
+        onNotifications: () => setState(() => index = 2),
+      ),
+      BantRoomsScreen(
+        state: appState,
+        onOpenRoom: openRoom,
+        onStartRoom: startRoom,
+      ),
       PeopleScreen(api: widget.api),
       ProfileScreen(auth: widget.auth, profile: widget.profile),
     ];
 
     return Scaffold(
-      body: SafeArea(child: IndexedStack(index: index, children: pages)),
+      body: SafeArea(
+        child: IndexedStack(
+          index: index,
+          children: pages,
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
+        height: 72,
+        backgroundColor: BantTheme.surface,
+        indicatorColor: const Color(0xFFE8F4FF),
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dynamic_feed), label: 'Feed'),
-          NavigationDestination(icon: Icon(Icons.graphic_eq), label: 'Rooms'),
-          NavigationDestination(icon: Icon(Icons.people), label: 'People'),
-          NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded, color: BantTheme.blue),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.forum_outlined),
+            selectedIcon: Icon(Icons.forum_rounded, color: BantTheme.blue),
+            label: 'Rooms',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline_rounded),
+            selectedIcon: Icon(Icons.people_rounded, color: BantTheme.blue),
+            label: 'People',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded, color: BantTheme.blue),
+            label: 'Profile',
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class FeedScreen extends StatefulWidget {
-  final MobileApi api;
-  final String title;
-  final BantProfile profile;
-
-  const FeedScreen({
-    super.key,
-    required this.api,
-    required this.title,
-    required this.profile,
-  });
-
-  @override
-  State<FeedScreen> createState() => _FeedScreenState();
-}
-
-class _FeedScreenState extends State<FeedScreen> {
-  late Future<List<Map<String, dynamic>>> future;
-
-  @override
-  void initState() {
-    super.initState();
-    future = widget.api.feed();
-  }
-
-  Future<void> refresh() async {
-    setState(() => future = widget.api.feed());
-    await future;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: refresh,
-      child: FutureBuilder<List<Map<String, dynamic>>>(
-        future: future,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Text(snapshot.error.toString()),
-                const SizedBox(height: 12),
-                BantButton(label: 'Retry', onPressed: refresh),
-              ],
-            );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final rooms = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              const _BrandMark(),
-              const SizedBox(height: 22),
-              Text(
-                widget.title == 'For You'
-                    ? "What's happening, ${widget.profile.displayName.split(' ').first}?"
-                    : widget.title,
-                style: const TextStyle(
-                  color: BantTheme.text,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Find the room for your mood.',
-                style: TextStyle(color: BantTheme.secondary),
-              ),
-              const SizedBox(height: 20),
-              for (final raw in rooms)
-                Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    side: const BorderSide(color: BantTheme.border),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(14),
-                    title: Text(
-                      raw['title']?.toString() ?? 'BANT room',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    subtitle: Text(
-                      '${raw['category'] ?? 'General'} · ${raw['participant_count'] ?? 0}/${raw['max_participants'] ?? 20}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RoomScreen(
-                            api: widget.api,
-                            room: BantRoom.fromJson(raw),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
-          );
-        },
       ),
     );
   }
