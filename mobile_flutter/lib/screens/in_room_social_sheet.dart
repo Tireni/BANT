@@ -204,7 +204,7 @@ class _InRoomSocialSheetState extends State<InRoomSocialSheet> {
             OutlinedButton.icon(
               onPressed: () async {
                 final ok = await state.blockUser(person.id);
-                if (!mounted || !ok) return;
+                if (!context.mounted || !ok) return;
                 Navigator.of(context).pop();
               },
               icon: const Icon(Icons.block_rounded, color: BantTheme.danger),
