@@ -47,7 +47,7 @@ class BantParticipantGrid extends StatelessWidget {
             crossAxisCount: columns,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 0.84,
+            mainAxisExtent: moderationMode ? 188 : 164,
           ),
           itemBuilder: (context, index) {
             final person = participants[index];
