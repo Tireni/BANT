@@ -19,6 +19,46 @@ class MobileApi {
     return response.data;
   }
 
+  Future<Map<String, dynamic>> bootstrap() async {
+    final data = await call('bootstrap');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> profile() async {
+    final data = await call('profile');
+    return Map<String, dynamic>.from(data['profile']);
+  }
+
+  Future<Map<String, dynamic>> interests() async {
+    final data = await call('interests');
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<Map<String, dynamic>> saveOnboardingProfile({
+    required String displayName,
+    required String username,
+    String bio = '',
+    String? avatarUrl,
+  }) async {
+    final data = await call('onboarding_profile', {
+      'display_name': displayName,
+      'username': username,
+      'bio': bio,
+      'avatar_url': avatarUrl,
+    });
+    return Map<String, dynamic>.from(data['profile']);
+  }
+
+  Future<Map<String, dynamic>> saveOnboardingInterests(List<String> slugs) async {
+    final data = await call('onboarding_interests', {'interests': slugs});
+    return Map<String, dynamic>.from(data['profile']);
+  }
+
+  Future<Map<String, dynamic>> finishOnboarding() async {
+    final data = await call('finish_onboarding');
+    return Map<String, dynamic>.from(data['profile']);
+  }
+
   Future<List<Map<String, dynamic>>> feed({String? category}) async {
     final data = await call('feed', {'category': category});
     return List<Map<String, dynamic>>.from(data?['rooms'] ?? const []);
