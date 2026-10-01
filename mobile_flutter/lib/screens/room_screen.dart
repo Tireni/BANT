@@ -36,6 +36,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
   bool sending = false;
   bool leaving = false;
   String? error;
+  dynamic _membersChannel;
+  dynamic _roomChannel;
 
   String get currentUserId =>
       Supabase.instance.client.auth.currentUser?.id ?? '';
@@ -56,6 +58,7 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
     super.initState();
     voice = VoiceService(Supabase.instance.client);
     voice.addListener(_onVoiceChanged);
+    _subscribeRealtime();
     _openRoom();
   }
 
@@ -67,10 +70,68 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
 
   @override
   void dispose() {
+    final client = Supabase.instance.client;
+    if (_membersChannel != null) {
+      client.removeChannel(_membersChannel);
+    }
+    if (_roomChannel != null) {
+      client.removeChannel(_roomChannel);
+    }
     voice.removeListener(_onVoiceChanged);
     voice.dispose();
     message.dispose();
     super.dispose();
+  }
+
+  void _subscribeRealtime() {
+    final client = Supabase.instance.client;
+
+    _membersChannel = client
+        .channel('mobile-room-members:${widget.room.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'room_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'room_id',
+            value: widget.room.id,
+          ),
+          callback: (_) {
+            _refresh();
+          },
+        )
+        .subscribe();
+
+    _roomChannel = client
+        .channel('mobile-room:${widget.room.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'rooms',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.room.id,
+          ),
+          callback: (payload) async {
+            final next = payload.newRecord;
+            if (next['status']?.toString() == 'ended') {
+              await voice.disconnect();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Room ended.')),
+              );
+              await widget.onRoomChanged?.call();
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
+              return;
+            }
+            _refresh();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _openRoom() async {
@@ -370,6 +431,12 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                             participants: room.participants,
                                             ownerId: room.ownerId,
                                             currentUserId: currentUserId,
+                                            connectedVoiceUserIds:
+                                                voice.connectedUserIds,
+                                            activeSpeakerIds:
+                                                voice.activeSpeakerIds,
+                                            mutedVoiceUserIds:
+                                                voice.mutedVoiceUserIds,
                                           ),
                                       ],
                                     ),
