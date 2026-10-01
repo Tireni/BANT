@@ -123,6 +123,33 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
     }
   }
 
+  Future<void> _switchRole() async {
+    final membership = currentMembership;
+    if (membership == null || isOwner) return;
+
+    final nextRole = membership.role == 'listener' ? 'speaker' : 'listener';
+
+    try {
+      await widget.api.joinRoom(widget.room.id, role: nextRole);
+      await _refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            nextRole == 'speaker'
+                ? 'You are now a speaker.'
+                : 'You are now a listener.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _sendMessage() async {
     final body = message.text.trim();
     if (body.isEmpty || sending) return;
@@ -287,6 +314,8 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                     room: room,
                                     currentRole:
                                         currentMembership?.role ?? 'speaker',
+                                    onSwitchRole:
+                                        isOwner ? null : _switchRole,
                                   ),
                                   const SizedBox(height: 18),
                                   _Panel(
@@ -435,10 +464,12 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
 class _RoomIntro extends StatelessWidget {
   final BantRoomDetail room;
   final String currentRole;
+  final VoidCallback? onSwitchRole;
 
   const _RoomIntro({
     required this.room,
     required this.currentRole,
+    this.onSwitchRole,
   });
 
   @override
@@ -526,6 +557,22 @@ class _RoomIntro extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          if (onSwitchRole != null) ...[
+            OutlinedButton.icon(
+              onPressed: onSwitchRole,
+              icon: Icon(
+                currentRole == 'listener'
+                    ? Icons.mic_none_rounded
+                    : Icons.headphones_rounded,
+              ),
+              label: Text(
+                currentRole == 'listener'
+                    ? 'Become speaker'
+                    : 'Become listener',
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           const Text(
             'Room access is active. Android voice connection is added in Batch 5.',
             style: TextStyle(
