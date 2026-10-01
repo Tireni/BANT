@@ -87,6 +87,7 @@ class _RoomInviteSheetState extends State<RoomInviteSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -105,16 +106,16 @@ class _RoomInviteSheetState extends State<RoomInviteSheet> {
                 width: 42,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: BantTheme.border,
+                  color: colors.border,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'INVITE PEOPLE',
               style: TextStyle(
-                color: BantTheme.blue,
+                color: colors.blue,
                 fontSize: 11,
                 letterSpacing: 1.1,
                 fontWeight: FontWeight.w900,
@@ -123,17 +124,17 @@ class _RoomInviteSheetState extends State<RoomInviteSheet> {
             const SizedBox(height: 8),
             Text(
               widget.room.title,
-              style: const TextStyle(
-                color: BantTheme.text,
+              style: TextStyle(
+                color: colors.text,
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Share this short BANT link. People who already have the Android app can open the room directly.',
               style: TextStyle(
-                color: BantTheme.secondary,
+                color: colors.secondary,
                 fontSize: 13,
                 height: 1.45,
               ),
@@ -150,8 +151,8 @@ class _RoomInviteSheetState extends State<RoomInviteSheet> {
                 children: [
                   Text(
                     error!,
-                    style: const TextStyle(
-                      color: BantTheme.danger,
+                    style: TextStyle(
+                      color: colors.danger,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -167,14 +168,14 @@ class _RoomInviteSheetState extends State<RoomInviteSheet> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  border: Border.all(color: BantTheme.border),
+                  color: colors.background,
+                  border: Border.all(color: colors.border),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: SelectableText(
                   link,
-                  style: const TextStyle(
-                    color: BantTheme.text,
+                  style: TextStyle(
+                    color: colors.text,
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
