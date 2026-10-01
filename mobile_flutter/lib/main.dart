@@ -123,6 +123,8 @@ class _AuthGateState extends State<AuthGate> {
   late final PendingInviteStore pendingInviteStore;
   late final AppLinks appLinks;
   StreamSubscription<Uri>? _linkSubscription;
+  StreamSubscription<AuthState>? _authSubscription;
+  int _bootstrapGeneration = 0;
   BantProfile? profile;
   String? pendingInviteToken;
   bool loading = true;
@@ -136,11 +138,13 @@ class _AuthGateState extends State<AuthGate> {
     pendingInviteStore = PendingInviteStore();
     appLinks = AppLinks();
     authChanges = auth.changes;
-    authChanges.listen((event) {
+    _authSubscription = authChanges.listen((event) {
       if (event.event == AuthChangeEvent.signedOut) {
         unawaited(widget.pushService.resetAfterSignOut());
       }
-      bootstrap();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) bootstrap();
+      });
     });
     _startInviteLinks();
     bootstrap();
@@ -185,12 +189,15 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   void dispose() {
+    _bootstrapGeneration++;
     _linkSubscription?.cancel();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
   Future<void> bootstrap() async {
     if (!mounted) return;
+    final generation = ++_bootstrapGeneration;
 
     if (auth.session == null) {
       setState(() {
@@ -208,6 +215,7 @@ class _AuthGateState extends State<AuthGate> {
 
     try {
       final data = await api.bootstrap();
+      if (!mounted || generation != _bootstrapGeneration) return;
       final next = BantProfile.fromJson(
         Map<String, dynamic>.from(data['profile']),
       );
@@ -218,7 +226,7 @@ class _AuthGateState extends State<AuthGate> {
       });
       unawaited(widget.pushService.registerCurrentDevice(api));
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _bootstrapGeneration) return;
       setState(() {
         error = e.toString();
         loading = false;
