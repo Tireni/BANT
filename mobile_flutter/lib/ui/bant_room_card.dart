@@ -17,17 +17,22 @@ class BantRoomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+
     return Material(
-      color: BantTheme.surface,
+      color: colors.surface,
       borderRadius: BorderRadius.circular(22),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
           width: compact ? 274 : double.infinity,
+          constraints: const BoxConstraints(minWidth: 250),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: BantTheme.border),
+            color: colors.surface,
+            border: Border.all(color: colors.border),
             borderRadius: BorderRadius.circular(22),
           ),
           child: Column(
@@ -35,13 +40,28 @@ class BantRoomCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _CategoryBadge(label: room.category),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: colors.soft,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      room.category,
+                      style: TextStyle(
+                        color: colors.blue,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                   const Spacer(),
                   if (room.privacy == 'private')
-                    const Icon(
-                      Icons.lock_outline,
-                      size: 17,
-                      color: BantTheme.secondary,
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 16,
+                      color: colors.secondary,
                     ),
                 ],
               ),
@@ -50,48 +70,58 @@ class BantRoomCard extends StatelessWidget {
                 room.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: BantTheme.text,
+                style: TextStyle(
+                  color: colors.text,
                   fontSize: 18,
-                  height: 1.2,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 10),
               Text(
                 room.description.isEmpty
-                    ? 'Live room discussion.'
+                    ? 'A fresh BANT room.'
                     : room.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: BantTheme.secondary,
+                style: TextStyle(
+                  color: colors.secondary,
                   fontSize: 13,
-                  height: 1.4,
+                  height: 18 / 13,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 14),
               Wrap(
-                spacing: 12,
+                spacing: 10,
                 runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   _Meta(
                     icon: Icons.mic_none_rounded,
                     label: '${room.speakerCount} talking',
-                    color: BantTheme.mint,
+                    color: colors.mint,
+                    textColor: colors.secondary,
                   ),
                   _Meta(
                     icon: Icons.people_outline_rounded,
                     label: '${room.participantCount} here',
-                    color: BantTheme.blue,
+                    color: colors.blue,
+                    textColor: colors.secondary,
                   ),
-                  const _Meta(
-                    icon: Icons.graphic_eq_rounded,
-                    label: 'Open',
-                    color: BantTheme.blue,
-                    strong: true,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _Waveform(color: colors.mint),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Open',
+                        style: TextStyle(
+                          color: colors.blue,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -103,41 +133,17 @@ class BantRoomCard extends StatelessWidget {
   }
 }
 
-class _CategoryBadge extends StatelessWidget {
-  final String label;
-  const _CategoryBadge({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8F4FF),
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: BantTheme.blue,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
 class _Meta extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  final bool strong;
+  final Color textColor;
 
   const _Meta({
     required this.icon,
     required this.label,
     required this.color,
-    this.strong = false,
+    required this.textColor,
   });
 
   @override
@@ -145,17 +151,46 @@ class _Meta extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color),
+        Icon(icon, size: 15, color: color),
         const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
-            color: strong ? BantTheme.blue : BantTheme.secondary,
+            color: textColor,
             fontSize: 12,
-            fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _Waveform extends StatelessWidget {
+  final Color color;
+  const _Waveform({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    const heights = <double>[6, 12, 18, 10, 15, 7];
+    return SizedBox(
+      width: 26,
+      height: 20,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          for (final height in heights)
+            Container(
+              width: 2,
+              height: height,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
