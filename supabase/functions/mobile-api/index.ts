@@ -294,45 +294,34 @@ Deno.serve(async (req) => {
 
       case "create_invite": {
         const roomId = requireString(body.room_id, "room_id");
-        const { data: room } = await admin
-          .from("rooms")
-          .select("id,status,owner_id,host_id")
-          .eq("id", roomId)
-          .maybeSingle();
-        if (!room) return json({ error: "Room not found" }, 404);
-        if (room.status !== "live") return json({ error: "This room has ended" }, 409);
+        const { data, error } = await userClient.rpc("create_share_room_invite", {
+          p_room_id: roomId
+        });
+        if (error) return fail(error);
+        return json({ invite: data });
+      }
 
-        const { data: membership } = await admin
-          .from("room_members")
-          .select("user_id")
-          .eq("room_id", roomId)
-          .eq("user_id", user.id)
-          .is("left_at", null)
-          .maybeSingle();
+      case "invite_preview": {
+        const token = requireString(body.invite_token, "invite_token");
+        const { data, error } = await userClient.rpc("get_room_invite_preview", {
+          p_invite_token: token
+        });
+        if (error) return fail(error);
+        const preview = Array.isArray(data) ? data[0] ?? null : data ?? null;
+        return json({ preview });
+      }
 
-        if (!membership && (room.owner_id ?? room.host_id) !== user.id) {
-          return json({ error: "Join the room before inviting people" }, 403);
-        }
-
-        let invite: any = null;
-        for (let attempt = 0; attempt < 3 && !invite; attempt += 1) {
-          const token = randomToken(12);
-          const result = await admin
-            .from("room_invites")
-            .insert({
-              room_id: roomId,
-              created_by: user.id,
-              invite_token: token,
-              invitee_user_id: null,
-              expires_at: null
-            })
-            .select("id,room_id,invite_token,status,expires_at")
-            .single();
-          if (!result.error) invite = result.data;
-          else if (result.error.code !== "23505") return fail(result.error);
-        }
-        if (!invite) return json({ error: "Unable to create invite" }, 500);
-        return json({ invite });
+      case "join_invite": {
+        const token = requireString(body.invite_token, "invite_token");
+        const role = body.role === "listener" ? "listener" : "speaker";
+        const { data, error } = await userClient.rpc("join_private_room_with_invite", {
+          p_invite_token: token,
+          p_role: role
+        });
+        if (error) return fail(error);
+        const membership = Array.isArray(data) ? data[0] ?? null : data ?? null;
+        if (!membership?.room_id) return json({ error: "Unable to join invited room" }, 400);
+        return json({ membership });
       }
 
       case "people": {
