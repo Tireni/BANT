@@ -13,7 +13,8 @@ export function ParticipantGrid({
   currentUserId,
   onWarnSelected,
   noiseControlEnabled = false,
-  mutedUserIds = []
+  mutedUserIds = [],
+  connectedVoiceUserIds = []
 }: {
   users: User[];
   selectedUserIds?: string[];
@@ -24,6 +25,7 @@ export function ParticipantGrid({
   onWarnSelected?: () => void;
   noiseControlEnabled?: boolean;
   mutedUserIds?: string[];
+  connectedVoiceUserIds?: string[];
 }) {
   const theme = useTheme();
   const isOwner = Boolean(roomOwnerId && currentUserId && roomOwnerId === currentUserId);
@@ -42,7 +44,9 @@ export function ParticipantGrid({
         key={columns}
         keyExtractor={(user) => user.id}
         numColumns={columns}
-        scrollEnabled={false}
+        scrollEnabled={users.length > 15}
+        nestedScrollEnabled
+        style={styles.list}
         initialNumToRender={24}
         maxToRenderPerBatch={24}
         windowSize={5}
@@ -51,6 +55,7 @@ export function ParticipantGrid({
           const active = selectedUserIds.includes(user.id);
           const selectable = isOwner && moderationMode && user.id !== roomOwnerId;
           const muted = mutedUserIds.includes(user.id);
+          const voiceConnected = connectedVoiceUserIds.includes(user.id);
           const isHost = roomOwnerId === user.id;
           return (
             <Pressable
@@ -76,8 +81,12 @@ export function ParticipantGrid({
                 {isHost ? <Text style={[styles.badge, { color: theme.colors.warning, backgroundColor: theme.colors.soft }]}>HOST</Text> : null}
               </View>
               <View style={styles.metaRow}>
-                <Text style={[styles.role, { color: theme.colors.secondary }]}>{isHost ? "host" : muted ? "muted" : "live"}</Text>
-                {muted ? <MicOff size={12} color={theme.colors.danger} /> : <Mic size={12} color={theme.colors.mint} />}
+                <Text style={[styles.role, { color: theme.colors.secondary }]}>
+                  {muted ? "muted" : voiceConnected ? "voice connected" : "not connected"}
+                </Text>
+                {muted
+                  ? <MicOff size={12} color={theme.colors.danger} />
+                  : <Mic size={12} color={voiceConnected ? theme.colors.mint : theme.colors.muted} />}
               </View>
             </Pressable>
           );
@@ -89,6 +98,7 @@ export function ParticipantGrid({
 
 const styles = StyleSheet.create({
   wrap: { width: "100%" },
+  list: { maxHeight: 520 },
   row: { alignItems: "stretch" },
   item: { alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, backgroundColor: "rgba(0,0,0,0.04)" },
   avatarWrap: { position: "relative" },

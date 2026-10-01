@@ -1,59 +1,76 @@
 # BANT Production Checklist
 
 ## Backend
+- [ ] Canonical migrations 001 through latest applied.
+- [ ] 000_complete_setup.sql treated as historical snapshot only.
+- [ ] get_live_room_feed RPC available.
+- [ ] RLS verified for rooms, membership, friendships, invites, warnings, reports, chat, and notifications.
+- [ ] Realtime enabled for rooms, room_members, room_messages, room_warnings, notifications, friend_requests, friendships, and room_invites.
 
-- [ ] Canonical migrations `001` through latest applied.
-- [ ] `000_complete_setup.sql` treated as historical snapshot only.
-- [ ] RLS policies verified on profiles, rooms, room members, voice signals, messages, notifications, friendships, invites, warnings, reports, and feedback.
-- [ ] RPC execute grants reviewed and limited to required roles.
-- [ ] Realtime enabled for required tables.
-- [ ] Avatar storage bucket and user-scoped policies verified.
+## LiveKit
+- [ ] LiveKit project created.
+- [ ] LIVEKIT_URL configured as an Edge Function secret.
+- [ ] LIVEKIT_API_KEY configured server-side.
+- [ ] LIVEKIT_API_SECRET configured server-side.
+- [ ] livekit-token Edge Function deployed.
+- [ ] LiveKit secret is not exposed through EXPO_PUBLIC_*.
+- [ ] 2-person real audio test passed.
+- [ ] 10-person media test passed.
+- [ ] 50-person media test passed.
+- [ ] 100-person media/load test passed before claiming 100-person production validation.
 
 ## Auth
-
 - [ ] Email signup/login verified.
-- [ ] Username login intentionally removed until server-side auth proxy is built.
-- [ ] Google web callback URL configured.
-- [ ] Google native `bant://auth/callback` configured.
-- [ ] Confirmed first-time users complete profile setup.
+- [ ] Google web callback configured.
+- [ ] Google native callback configured if native launch is included.
+- [ ] First-time user onboarding verified.
+- [ ] Username-to-email lookup remains disabled.
 
 ## Rooms
-
-- [ ] Public room creation works.
+- [ ] 5/10/15/20/30/50/75/100 capacity choices work.
+- [ ] 100th active member can join a 100-person room.
+- [ ] 101st active member is rejected.
+- [ ] Public feed uses lightweight room summaries.
 - [ ] Private invite join works.
-- [ ] Capacity cap of 2-8 enforced in UI and database.
-- [ ] End-room flow marks active members as left and blocks new joins.
-- [ ] Non-owner moderation blocked.
+- [ ] Room-specific realtime updates do not reload the full feed.
+- [ ] Room end disconnects media clients and blocks new joins.
 
 ## Voice
-
-- [ ] TURN server configured for production networks.
-- [ ] Two-user audio verified.
+- [ ] Production path uses LiveKit SFU, not mesh RTCPeerConnection fan-out.
+- [ ] Remote audio tracks are attached and audible.
+- [ ] Self mute works.
+- [ ] Host mute overrides self-unmute.
+- [ ] Release restores the user's ability to self-unmute.
 - [ ] Reconnect tested.
-- [ ] Self mute tested.
-- [ ] Host mute tested.
-- [ ] Mesh limit accepted for closed beta, or SFU provider selected before scale.
+- [ ] Leave/room-end cleanup tested.
+
+## Moderation
+- [ ] Mute one.
+- [ ] Mute selected.
+- [ ] Mute all.
+- [ ] Release selected/all.
+- [ ] Noise Control one/selected/all.
+- [ ] End room owner-only.
 
 ## Social
-
 - [ ] Friend request sent.
 - [ ] Friend request accepted.
-- [ ] Notifications delivered and marked read only by owner.
+- [ ] Notifications delivered and read state enforced.
 
 ## Security
-
-- [ ] Username enumeration prevented.
-- [ ] No client-side username-to-email lookup.
+- [ ] SECURITY DEFINER grants reviewed.
+- [ ] Direct membership insert blocked.
 - [ ] Private invite tokens protected.
-- [ ] Non-owner moderation blocked by backend.
-- [ ] Raw database errors mapped where user-facing.
+- [ ] Non-owner moderation rejected.
+- [ ] Avatar storage user-scoped.
+- [ ] No client-side LiveKit secret exposure.
 
 ## Ops
-
-- [ ] CI passing.
-- [ ] Production web build passing.
-- [ ] `npm audit` reviewed.
-- [ ] Error monitoring selected.
-- [ ] Backup plan documented.
-- [ ] Rollback plan documented.
-
+- [ ] GitHub CI green.
+- [ ] npm ci passes.
+- [ ] typecheck passes.
+- [ ] tests pass.
+- [ ] production web export passes.
+- [ ] expo-doctor reviewed.
+- [ ] error monitoring chosen.
+- [ ] rollback plan documented.

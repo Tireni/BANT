@@ -87,14 +87,25 @@ export function useRoomChat(roomId?: string, currentUserId?: string) {
     if (!roomId || !currentUserId || !hasSupabaseConfig) return;
     const channel = supabase
       .channel(`room-messages:${roomId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "room_messages", filter: `room_id=eq.${roomId}` }, () => {
-        void loadMessages();
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "room_messages", filter: `room_id=eq.${roomId}` }, (payload) => {
+        const row = payload.new as Omit<MessageRow, "profiles">;
+        void (async () => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("display_name, username")
+            .eq("id", row.sender_id)
+            .maybeSingle();
+          const message = shapeMessage({ ...row, profiles: profile ?? null });
+          setMessages((current) => current.some((item) => item.id === message.id)
+            ? current
+            : [...current, message].slice(-80));
+        })();
       })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, loadMessages, roomId]);
+  }, [currentUserId, roomId]);
 
   return { messages, loading, sending, error, sendMessage, reload: loadMessages };
 }

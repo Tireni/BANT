@@ -1,10 +1,11 @@
 import { router } from "expo-router";
 import { Bell } from "lucide-react-native";
 import { ReactNode, useEffect } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BantAvatar } from "@/components/common/BantAvatar";
 import { BantButton } from "@/components/common/BantButton";
+import { EmptyState } from "@/components/common/EmptyState";
 import { RoomCard } from "@/components/room/RoomCard";
 import { useTheme } from "@/hooks/useTheme";
 import { useBantStore } from "@/store/useBantStore";
@@ -16,12 +17,15 @@ export default function Home() {
   const rooms = useBantStore((state) => state.rooms);
   const loadRooms = useBantStore((state) => state.loadRooms);
   const user = useBantStore((state) => state.currentUser);
+  const notifications = useBantStore((state) => state.notifications);
   useEffect(() => {
     void loadRooms();
   }, [loadRooms]);
-  const liveNow = rooms.filter((room) => room.privacy === "public").slice(0, 5);
-  const recommended = rooms.filter((room) => room.privacy === "public").slice(0, 6);
-  const trending = rooms.filter((room) => room.privacy === "public").slice(6, 12);
+  const publicRooms = rooms.filter((room) => room.privacy === "public");
+  const liveNow = publicRooms.slice(0, 5);
+  const popular = [...publicRooms].sort((a, b) => b.participantCount - a.participantCount).slice(0, 6);
+  const newest = publicRooms.slice(0, 6);
+  const unread = notifications.filter((item) => !item.readAt).length;
   if (!user) return null;
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
@@ -29,25 +33,31 @@ export default function Home() {
         <View style={styles.topbar}>
           <Image source={mascot} style={styles.logo} resizeMode="contain" />
           <Text style={[styles.pill, { backgroundColor: theme.colors.soft, color: theme.colors.blue }]}>BANT</Text>
-          <View style={styles.right}><Bell size={22} color={theme.colors.secondary} /><BantAvatar user={user} size={38} /></View>
+          <View style={styles.right}>
+            <Pressable onPress={() => router.push("/(tabs)/friends")} style={styles.bellButton}>
+              <Bell size={22} color={theme.colors.secondary} />
+              {unread ? <View style={[styles.badge, { backgroundColor: theme.colors.danger }]}><Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text></View> : null}
+            </Pressable>
+            <BantAvatar user={user} size={38} />
+          </View>
         </View>
         <View>
           <Text style={[styles.greeting, { color: theme.colors.text }]}>What's happening, {user.name.split(" ")[0]}?</Text>
           <Text style={[styles.sub, { color: theme.colors.secondary }]}>Find the room for your mood.</Text>
         </View>
         <Section title="LIVE NOW" horizontal>
-          {liveNow.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />)}
+          {liveNow.length ? liveNow.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />) : <EmptyState title="Nothing live right now." body="Start a room." action="Start a room" onPress={() => router.push("/room/create")} />}
         </Section>
         <View style={[styles.start, { backgroundColor: theme.colors.blue }]}>
           <Text style={styles.startTitle}>Got something to say?</Text>
           <Text style={styles.startBody}>Start a room and invite people who get it.</Text>
           <BantButton title="Start a room" variant="secondary" onPress={() => router.push("/room/create")} />
         </View>
-        <Section title="RECOMMENDED FOR YOU">
-          {recommended.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />)}
+        <Section title="POPULAR">
+          {popular.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />)}
         </Section>
-        <Section title="TRENDING NOW">
-          {trending.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />)}
+        <Section title="NEW">
+          {newest.map((room) => <RoomCard key={room.id} room={room} onPress={() => router.push(`/room/${room.id}`)} />)}
         </Section>
       </ScrollView>
     </SafeAreaView>
@@ -71,6 +81,9 @@ const styles = StyleSheet.create({
   logo: { width: 46, height: 46 },
   pill: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 12 },
   right: { flexDirection: "row", alignItems: "center", gap: 14 },
+  bellButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", position: "relative" },
+  badge: { position: "absolute", top: 1, right: 0, minWidth: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  badgeText: { color: "#fff", fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 9 },
   greeting: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 28, lineHeight: 34 },
   sub: { fontFamily: "PlusJakartaSans_500Medium", fontSize: 15, marginTop: 6 },
   section: { gap: 12 },

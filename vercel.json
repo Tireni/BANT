@@ -3,6 +3,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/r/:token",
+      "destination": "https://dhkroavcdcmlpnjfkivm.supabase.co/functions/v1/room-invite-preview?token=:token&next=https%3A%2F%2Fbant-demo.vercel.app%2Finvite%2F:token"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

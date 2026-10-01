@@ -1,9 +1,8 @@
 import * as Clipboard from "expo-clipboard";
-import * as Sharing from "expo-sharing";
-import { Redirect, router, useLocalSearchParams } from "expo-router";
+ import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, Flag, Hand, Lock, Mic, MicOff, MoreHorizontal, Send, Share2, Users, Volume2, X } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/common/BottomSheet";
 import { BantButton } from "@/components/common/BantButton";
@@ -29,6 +28,7 @@ export default function RoomScreen() {
   const sendFriendRequest = useBantStore((state) => state.sendFriendRequest);
   const acceptFriendRequest = useBantStore((state) => state.acceptFriendRequest);
   const cancelFriendRequest = useBantStore((state) => state.cancelFriendRequest);
+  const blockUser = useBantStore((state) => state.blockUser);
   const createRoomInvite = useBantStore((state) => state.createRoomInvite);
   const setToast = useBantStore((state) => state.setToast);
   const joinRoom = useBantStore((state) => state.joinRoom);
@@ -62,7 +62,7 @@ export default function RoomScreen() {
       }
       return;
     }
-    void joinRoom(room.id, room.ownerId === profile.id ? "speaker" : "listener").then((joined) => {
+    void joinRoom(room.id, "speaker").then((joined) => {
       if (joined && voice.supported) {
         void loadRoom(room.id);
         void voice.start();
@@ -115,6 +115,18 @@ export default function RoomScreen() {
     }
     await Clipboard.setStringAsync(inviteLink);
     setToast("Invite link copied");
+  };
+
+  const shareInvite = async () => {
+    if (!inviteLink || !room) return;
+    try {
+      await Share.share({
+        title: room.title,
+        message: `${room.title}\nJoin the conversation on BANT: ${inviteLink}`
+      });
+    } catch {
+      await copy();
+    }
   };
   const leave = async () => {
     if (!room) return;
@@ -207,7 +219,7 @@ export default function RoomScreen() {
       setToast(moderationMessage(error.message));
       return;
     }
-    await loadRooms();
+    await loadRoom(room.id);
     setSelectedUserIds([]);
     setModerationMode(false);
     setModerationAction(null);
@@ -224,7 +236,7 @@ export default function RoomScreen() {
       setToast(moderationMessage(error.message));
       return;
     }
-    await loadRooms();
+    await loadRoom(room.id);
     setSelectedUserIds([]);
     setModerationMode(false);
     setModerationAction(null);
@@ -246,7 +258,7 @@ export default function RoomScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
       <NoiseWarningOverlay roomId={room?.id} currentUserId={profile?.id} />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.icon}><ArrowLeft color={theme.colors.text} size={24} /></Pressable>
+        <Pressable onPress={() => isOwner ? setMenuOpen(true) : void leave()} style={styles.icon}><ArrowLeft color={theme.colors.text} size={24} /></Pressable>
         <View style={styles.headerTitle}>
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>{room.title}</Text>
           <Text style={[styles.privacy, { color: theme.colors.secondary }]}>{room.category} · {participantCount} / {room.maxParticipants ?? 20}</Text>
@@ -295,6 +307,7 @@ export default function RoomScreen() {
             onWarnSelected={warnSelected}
             noiseControlEnabled={Boolean(room.noiseControlEnabled)}
             mutedUserIds={room.mutedUserIds ?? []}
+            connectedVoiceUserIds={voice.connectedUserIds ?? []}
           />
         </View>
         <Text style={[styles.section, { color: theme.colors.muted }]}>CHAT</Text>
@@ -341,11 +354,13 @@ export default function RoomScreen() {
             <RoomControlButton label="Mute" active={false} onPress={() => { setModerationAction("mute"); setModerationMode(true); setSelectedUserIds([]); }} icon={<MicOff size={20} color={theme.colors.text} />} />
             <RoomControlButton label="Moderate" active={moderationMode} onPress={() => { setModerationAction("mute"); setModerationMode(true); setSelectedUserIds([]); }} icon={<Users size={20} color={theme.colors.text} />} />
             {room.noiseControlEnabled ? <RoomControlButton label="Noise 🤫" active={moderationAction === "warn"} onPress={() => { setModerationAction("warn"); setModerationMode(true); setSelectedUserIds([]); }} icon={<Volume2 size={20} color={theme.colors.warning} />} /> : null}
+            <RoomControlButton label="Invite" active={inviteOpen} onPress={() => setInviteOpen(true)} icon={<Share2 size={20} color={theme.colors.blue} />} />
             <RoomControlButton label="End Room" danger onPress={endRoom} icon={<X size={20} color={theme.colors.danger} />} />
           </>
         ) : (
           <>
             <RoomControlButton label={voice.adminMuted ? "Host Muted" : voiceLabel} active={voice.status === "connected"} onPress={toggleVoice} icon={voice.muted ? <MicOff size={20} color={voice.adminMuted ? theme.colors.danger : theme.colors.blue} /> : <Mic size={20} color={voice.status === "connected" ? theme.colors.blue : theme.colors.text} />} />
+            <RoomControlButton label="Invite" active={inviteOpen} onPress={() => setInviteOpen(true)} icon={<Share2 size={20} color={theme.colors.blue} />} />
             <RoomControlButton label="Leave" danger onPress={leave} icon={<X size={20} color={theme.colors.danger} />} />
           </>
         )}
@@ -378,28 +393,34 @@ export default function RoomScreen() {
           <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>SPEAKERS</Text>
           {speakers.map((user) => {
             const action = friendActionFor(user.id);
-            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} />;
+            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} secondaryAction={user.id === profile?.id ? undefined : "Block"} onSecondaryPress={() => void blockUser(user.id)} />;
           })}
           <Text style={[styles.sheetLabel, { color: theme.colors.muted, marginTop: 16 }]}>LISTENERS</Text>
           {listeners.map((user) => {
             const action = friendActionFor(user.id);
-            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} />;
+            return <UserRow key={user.id} user={user} action={action.label} onPress={action.press} secondaryAction={user.id === profile?.id ? undefined : "Block"} onSecondaryPress={() => void blockUser(user.id)} />;
           })}
         </ScrollView>
       </BottomSheet>
       <BottomSheet visible={inviteOpen} onClose={() => setInviteOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Invite people</Text>
-        <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>ROOM LINK</Text>
-        <Text style={[styles.link, { color: theme.colors.secondary, backgroundColor: theme.colors.soft }]}>{inviteLink || "Generate a secure invite link for this room."}</Text>
+        <Text style={[styles.sheetLabel, { color: theme.colors.muted }]}>ROOM INVITE</Text>
+        <View style={[styles.inviteCard, { backgroundColor: theme.colors.soft, borderColor: theme.colors.border }]}>
+          <Text style={[styles.inviteRoomTitle, { color: theme.colors.text }]} numberOfLines={2}>{room.title}</Text>
+          <Text style={[styles.inviteRoomMeta, { color: theme.colors.secondary }]}>
+            {inviteLink ? "Secure invite link ready to copy or share." : "Generate a secure invite link for this room."}
+          </Text>
+        </View>
         <View style={{ gap: 10, marginTop: 10 }}>
           <BantButton title={inviteLink ? "Copy link" : "Generate invite link"} onPress={copy} loading={creatingInvite} />
-          <BantButton title="Share" variant="ghost" disabled={!inviteLink} onPress={() => Sharing.shareAsync(inviteLink).catch(() => copy())} />
+          <BantButton title="Share" variant="ghost" disabled={!inviteLink} onPress={() => void shareInvite()} />
         </View>
       </BottomSheet>
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Room options</Text>
-        <BantButton title="Report room" variant="danger" icon={<Flag size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setReportOpen(true); }} />
-        <BantButton title="Leave quietly" variant="ghost" onPress={leave} style={{ marginTop: 10 }} />
+        <BantButton title="Invite people" icon={<Share2 size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setInviteOpen(true); }} />
+        <BantButton title="Report room" variant="danger" icon={<Flag size={18} color="#fff" />} onPress={() => { setMenuOpen(false); setReportOpen(true); }} style={{ marginTop: 10 }} />
+        {isOwner ? <BantButton title="End room" variant="danger" onPress={endRoom} style={{ marginTop: 10 }} /> : <BantButton title="Leave quietly" variant="ghost" onPress={leave} style={{ marginTop: 10 }} />}
       </BottomSheet>
       <BottomSheet visible={reportOpen} onClose={() => setReportOpen(false)}>
         <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Report room</Text>
@@ -435,8 +456,12 @@ export default function RoomScreen() {
 }
 
 function inviteUrlForToken(token: string) {
-  if (typeof window !== "undefined" && window.location?.origin) return `${window.location.origin}/invite/${token}`;
-  return `https://bant.app/invite/${token}`;
+  const configuredPublicUrl = process.env.EXPO_PUBLIC_APP_URL?.replace(/\/$/, "");
+  const browserOrigin = typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : null;
+  const appOrigin = configuredPublicUrl || browserOrigin || "https://bant.app";
+  return `${appOrigin}/r/${token}`;
 }
 
 function moderationMessage(message?: string) {
@@ -490,5 +515,8 @@ const styles = StyleSheet.create({
   reasonChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   reasonText: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 12, textTransform: "capitalize" },
   reportInput: { minHeight: 96, borderWidth: 1, borderRadius: 16, padding: 12, textAlignVertical: "top", fontFamily: "PlusJakartaSans_500Medium", fontSize: 14, outlineStyle: "none" as never },
-  link: { overflow: "hidden", borderRadius: 14, padding: 12, marginTop: 12, fontFamily: "PlusJakartaSans_700Bold", fontSize: 13 }
+  link: { overflow: "hidden", borderRadius: 14, padding: 12, marginTop: 12, fontFamily: "PlusJakartaSans_700Bold", fontSize: 13 },
+  inviteCard: { borderWidth: 1, borderRadius: 16, padding: 14, marginTop: 10, gap: 4 },
+  inviteRoomTitle: { fontFamily: "PlusJakartaSans_800ExtraBold", fontSize: 16, lineHeight: 22 },
+  inviteRoomMeta: { fontFamily: "PlusJakartaSans_600SemiBold", fontSize: 12, lineHeight: 18 }
 });

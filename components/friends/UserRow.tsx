@@ -3,18 +3,35 @@ import { BantAvatar } from "@/components/common/BantAvatar";
 import { useTheme } from "@/hooks/useTheme";
 import { User } from "@/types/user";
 
-export function UserRow({ user, action, onPress }: { user: User; action?: string; onPress?: () => void }) {
+export function UserRow({
+  user,
+  action,
+  onPress,
+  secondaryAction,
+  onSecondaryPress
+}: {
+  user: User;
+  action?: string;
+  onPress?: () => void;
+  secondaryAction?: string;
+  onSecondaryPress?: () => void;
+}) {
   const theme = useTheme();
   return (
     <View style={[styles.row, { borderColor: theme.colors.border }]}>
       <BantAvatar user={user} />
       <View style={styles.mid}>
         <Text style={[styles.name, { color: theme.colors.text }]}>{user.name}</Text>
-        <Text style={[styles.meta, { color: theme.colors.secondary }]}>{user.online ? user.roomId ? `In a room now` : "Online" : "Offline"}</Text>
+        <Text style={[styles.meta, { color: theme.colors.secondary }]}>@{user.username}</Text>
       </View>
       {action ? (
         <Pressable onPress={onPress} style={[styles.action, { backgroundColor: theme.colors.soft }]}>
           <Text style={[styles.actionText, { color: theme.colors.blue }]}>{action}</Text>
+        </Pressable>
+      ) : null}
+      {secondaryAction ? (
+        <Pressable onPress={onSecondaryPress} style={[styles.action, { backgroundColor: theme.colors.soft }]}>
+          <Text style={[styles.actionText, { color: theme.colors.danger }]}>{secondaryAction}</Text>
         </Pressable>
       ) : null}
     </View>

@@ -1,6 +1,6 @@
 # BANT
 
-BANT is a social conversation app for discovering live voice rooms, joining conversations, meeting people, making friends, and moderating owned rooms.
+BANT is a social conversation platform for discovering live voice rooms, joining conversations, meeting people, making friends, and creating or moderating rooms.
 
 Core loop:
 
@@ -8,36 +8,57 @@ Core loop:
 DISCOVER -> JOIN -> TALK -> CONNECT -> RETURN
 ```
 
+## Launch Architecture
+
+BANT uses two complementary systems:
+
+- **Supabase** is the business source of truth for authentication, profiles, interests, rooms, room membership, capacity, friendships, notifications, invitations, moderation, Noise Control, chat, reports, and feedback.
+- **LiveKit** is the production SFU media layer for room audio. BANT does not use browser peer-to-peer mesh audio in the production room path.
+
+A participant must first have valid active BANT room membership in Supabase. The server-side `livekit-token` Edge Function verifies that membership before issuing a LiveKit token.
+
 ## Requirements
 
-- Node.js 20+ and npm
+- Node.js 22+ and npm
 - Supabase project
-- Modern browser with microphone support for web voice testing
+- LiveKit project
+- Modern browser with microphone support
 - HTTPS or localhost for microphone access
-- TURN server for reliable production WebRTC across real networks
 
-## Installation
+## Client Environment
 
-```bash
-npm install
-cp .env.example .env
-```
-
-Fill `.env`:
+Create `.env`:
 
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=your-project-url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-EXPO_PUBLIC_TURN_URL=turn:your-turn-host:3478
-EXPO_PUBLIC_TURN_USERNAME=your-turn-username
-EXPO_PUBLIC_TURN_CREDENTIAL=your-turn-credential
 ```
 
-TURN values are optional for local UI testing, but required before trusting voice reliability in production networks.
+Never place LiveKit API secrets in `EXPO_PUBLIC_*` variables.
+
+## LiveKit Server Secrets
+
+Configure these as Supabase Edge Function secrets:
+
+```bash
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your-livekit-api-key
+LIVEKIT_API_SECRET=your-livekit-api-secret
+```
+
+Deploy:
+
+```bash
+supabase functions deploy livekit-token
+```
+
+The Edge Function authenticates the Supabase user, verifies the room is live, verifies active room membership, derives the BANT role from the database, and only then issues a media token.
 
 ## Database Setup
 
-Canonical fresh database path:
+`000_complete_setup.sql` is a legacy snapshot only. Do not run it in the canonical current sequence.
+
+Apply numbered migrations in order:
 
 ```text
 001_phase1_auth_onboarding.sql
@@ -58,75 +79,116 @@ Canonical fresh database path:
 016_disable_insecure_username_lookup.sql
 017_limited_mesh_voice_capacity.sql
 018_rpc_permission_and_membership_hardening.sql
+019_100_person_sfu_rooms_and_feed.sql
+020_realtime_and_function_hardening.sql
+021_avatar_storage_security.sql
+022_user_blocks_and_social_guards.sql
+023_authoritative_mutation_paths.sql
 ```
 
-`000_complete_setup.sql` is a legacy snapshot only. Do not run it as part of the current fresh database sequence because later migrations supersede it.
+Migration 017 is historical: it temporarily limited the mesh implementation to eight participants. Migration 019 supersedes that launch limit after the production media path moved to LiveKit and allows room capacities from 5 through 100, defaulting to 20.
 
-Migration `015` introduced an insecure username-to-email lookup. Migration `016` revokes/drops that function, and the app no longer calls it.
+Migration 015 introduced an unsafe username-to-email lookup. Migration 016 removes it. Login is email/password or Google until username authentication is implemented through a safe server-side auth flow.
+
+## Room Capacity
+
+Room creators can choose:
+
+```text
+5, 10, 15, 20, 30, 50, 75, 100
+```
+
+The database is authoritative. Join RPCs still enforce room state and capacity.
+
+The 100-person target is an **SFU architecture target**, not a claim that a 100-participant media load test has already passed. Run the production load test before declaring the deployment fully validated.
+
+## Room Discovery
+
+Feed/discovery uses the lightweight `get_live_room_feed` RPC. It returns room metadata and aggregate participant/speaker counts rather than downloading every participant profile for every room.
+
+The live-room screen uses a separate full room-detail query and room-specific realtime refresh.
+
+## Voice
+
+Production room audio uses `livekit-client` and the `livekit-token` Supabase Edge Function.
+
+The old `voice_signals` table and migration remain as historical compatibility but are no longer the production media signaling path.
+
+Current launch media behavior:
+- owner and speakers can publish audio
+- listeners subscribe without publishing
+- ordinary public/invite joins default to speaker in the current MVP
+- self mute and owner/admin mute remain distinct
+- effective mute is self mute OR admin mute
+- room-end realtime disconnects media clients
+
+## Moderation And Noise Control
+
+Room owners can:
+- mute/release selected participants
+- mute/release all eligible participants
+- send Noise Control warnings when enabled
+- end the room
+
+Supabase remains authoritative for host mute state. Recipient clients receive the room membership update and apply it to their local published LiveKit audio track.
+
+Noise Control is separate from mute and displays a temporary realtime warning.
 
 ## Development
 
 ```bash
+npm install
 npm run web
 ```
 
-## Build And Validation
+## Validation
 
 ```bash
 npm ci
 npm run typecheck
 npm test
 npm run build
+npx expo-doctor
 ```
 
-CI runs the same typecheck, test, and build steps on pushes to `main` and pull requests.
-
-## Current Product Flow
-
-1. Sign up with email/password or Google.
-2. Set display name, username, avatar, and bio.
-3. Pick interests.
-4. Discover or create a live room.
-5. Join a room. Voice starts after backend entry succeeds.
-6. Chat, mute/unmute, and talk.
-7. Add friends.
-8. Create private invites and moderate participants if you own the room.
+CI runs typecheck, tests, and web export on pushes to `main` and pull requests.
 
 ## Auth
 
-- Email/password login is email-only in this build.
-- Username login is deferred until it can be handled by a server-side auth proxy without exposing auth emails.
-- Google OAuth uses the current web origin on web and `bant://auth/callback` on native.
-- First-time users are routed into profile setup before entering the app.
-- Pending private-room invites are preserved through login and onboarding.
+- Email/password login
+- Google OAuth with platform-aware callback handling
+- first-time users complete profile setup and interests
+- pending private-room invites survive auth/onboarding
+- username login is intentionally deferred rather than exposing private authentication email addresses
 
-## Rooms And Voice
+## Current Product Flow
 
-- Supabase Postgres is the source of truth for rooms, room members, friendships, private invites, notifications, reports, feedback, chat, voice signaling, and moderation.
-- Joining rooms goes through backend RPC validation and capacity checks.
-- Voice uses browser WebRTC mesh on web with Supabase Realtime signaling.
-- Mesh voice is capped at 8 participants in UI and database. BANT should move to an SFU such as LiveKit, Daily, Agora, Twilio Video, or mediasoup before larger live audio rooms.
-- ICE config always includes STUN and adds TURN when `EXPO_PUBLIC_TURN_*` values are configured.
+1. Sign up or sign in.
+2. Complete profile setup.
+3. Pick interests.
+4. Discover or create a room.
+5. Enter through Supabase membership validation.
+6. Receive a server-authorized LiveKit media token.
+7. Talk, chat, mute/unmute, and interact.
+8. Add friends.
+9. Create private invites.
+10. Moderate an owned room.
 
-## Moderation And Noise Control
+## Production Checklist
 
-Room owners can mute/release selected participants, mute/release all eligible participants, send Noise Control warnings when enabled, and end the room. Host mute is persisted in `room_members`, delivered through realtime, disables the target participant's outgoing audio track, and blocks self-unmute until released.
-
-## Testing
-
-Automated tests cover auth helpers, OAuth redirects, onboarding routes, room capacity/category helpers, mesh voice config, friendship contracts, invite contracts, and security contracts that prevent the old username lookup from returning.
-
-Optional staging integration tests live under `tests/integration` and skip unless `TEST_SUPABASE_URL` and `TEST_SUPABASE_ANON_KEY` are configured.
-
-## Production Docs
-
-- [Production smoke test](docs/PRODUCTION_SMOKE_TEST.md)
+See:
 - [Production checklist](docs/PRODUCTION_CHECKLIST.md)
+- [Production smoke test](docs/PRODUCTION_SMOKE_TEST.md)
 
-## Production Notes
-
-- Apply migrations to Supabase manually or through your chosen migration runner before deploying app code that depends on them.
-- Configure Google OAuth callback URLs in the Supabase dashboard for the deployed web domain and native scheme.
-- Verify avatar storage bucket/policies in Supabase before enabling public profile images at scale.
-- Keep `000_complete_setup.sql`, university columns, and follow tables as historical compatibility only; the active product uses profile setup and mutual friendships.
-
+Before public launch verify:
+- migrations through latest applied
+- `livekit-token` Edge Function deployed
+- LiveKit secrets configured server-side
+- Google OAuth redirect URLs configured
+- realtime publication verified
+- avatar storage policies verified
+- user blocking verified
+- sensitive friendship/invite/block mutations use RPC-only paths
+- CI green
+- two-browser media test passed
+- 10/50/100 participant load tests completed at the intended launch scale

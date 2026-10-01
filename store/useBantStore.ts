@@ -38,7 +38,6 @@ type CreateRoomInput = {
   description: string;
   category: RoomCategory;
   privacy: RoomPrivacy;
-  joinRule: "Everyone" | "Friends only";
   maxParticipants?: number;
   noiseControl?: boolean;
 };
@@ -47,7 +46,7 @@ export type BantNotification = {
   id: string;
   actorId: string | null;
   targetId?: string | null;
-  targetType?: "user" | "friend_request" | "room" | "system";
+  targetType?: "user" | "friend_request" | "room_invite" | "room" | "system";
   type: NotificationType;
   body: string;
   readAt: string | null;
@@ -66,6 +65,8 @@ type BantState = Persisted & {
   rooms: Room[];
   people: User[];
   friendIds: string[];
+  blockedUserIds: string[];
+  blockedPeople: User[];
   incomingFriendRequests: FriendRequestRecord[];
   outgoingFriendRequests: FriendRequestRecord[];
   friendshipStates: Record<string, FriendState>;
@@ -75,6 +76,7 @@ type BantState = Persisted & {
   signUp: (input: { email: string; password: string; displayName: string; username: string }) => Promise<boolean>;
   signIn: (input: { email: string; password: string }) => Promise<boolean>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   saveOnboardingProfile: (input: { displayName: string; username: string; bio: string; avatarUrl?: string }) => Promise<boolean>;
   saveOnboardingInterests: (interests: string[]) => Promise<boolean>;
@@ -86,6 +88,8 @@ type BantState = Persisted & {
   acceptFriendRequest: (userId: string) => Promise<boolean>;
   declineFriendRequest: (userId: string) => Promise<boolean>;
   cancelFriendRequest: (userId: string) => Promise<boolean>;
+  blockUser: (userId: string) => Promise<boolean>;
+  unblockUser: (userId: string) => Promise<boolean>;
   friendshipState: (userId: string) => FriendState;
   friendCount: () => number;
   loadPeople: () => Promise<void>;
@@ -138,6 +142,8 @@ export const useBantStore = create<BantState>((set, get) => ({
   rooms: [],
   people: [],
   friendIds: [],
+  blockedUserIds: [],
+  blockedPeople: [],
   incomingFriendRequests: [],
   outgoingFriendRequests: [],
   friendshipStates: {},
@@ -153,13 +159,13 @@ export const useBantStore = create<BantState>((set, get) => ({
     });
 
     if (!hasSupabaseConfig) {
-      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, notifications: [], rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
+      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, notifications: [], rooms: [], people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
       return;
     }
 
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
-      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
+      set({ authenticated: false, currentUser: null, session: null, profile: null, hydrated: true, people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {} });
       return;
     }
 
@@ -190,19 +196,53 @@ export const useBantStore = create<BantState>((set, get) => ({
     }
     set({ authLoading: false });
   },
+  signInWithApple: async () => {
+    if (!hasSupabaseConfig) {
+      set({ toast: "Apple login requires Supabase env vars" });
+      return;
+    }
+    set({ authLoading: true, toast: null });
+    const redirectTo = googleOAuthRedirectUrl({
+      platform: Platform.OS,
+      origin: typeof window !== "undefined" ? window.location?.origin : undefined,
+      nativeUrl: Linking.createURL("/auth/callback")
+    });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: { redirectTo }
+    });
+    if (error) {
+      set({ authLoading: false, toast: "Apple sign-in could not be completed." });
+      return;
+    }
+    set({ authLoading: false });
+  },
   signUp: async ({ email, password, displayName, username }) => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase env vars are missing" });
       return false;
     }
     set({ authLoading: true, toast: null });
+    const publicAppUrl = process.env.EXPO_PUBLIC_APP_URL?.replace(/\/$/, "");
+    const emailRedirectTo = publicAppUrl ? `${publicAppUrl}/auth/callback` : undefined;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName, username: normalizeUsername(username) } }
+      options: {
+        data: { display_name: displayName, username: normalizeUsername(username) },
+        emailRedirectTo
+      }
     });
     if (error) {
-      set({ authLoading: false, toast: "Could not create account." });
+      const message = error.message.toLowerCase();
+      const friendly = message.includes("email address not authorized")
+        ? "Email sign-up is not configured for public users yet."
+        : message.includes("rate limit")
+          ? "Too many confirmation emails were requested. Please try again shortly."
+          : message.includes("already registered")
+            ? "An account already exists for this email. Try logging in."
+            : error.message || "Could not create account.";
+      set({ authLoading: false, toast: friendly });
       return false;
     }
     if (!data.session) {
@@ -243,7 +283,7 @@ export const useBantStore = create<BantState>((set, get) => ({
   },
   signOut: async () => {
     if (hasSupabaseConfig) await supabase.auth.signOut();
-    set({ authenticated: false, currentUser: null, session: null, profile: null, rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [] });
+    set({ authenticated: false, currentUser: null, session: null, profile: null, rooms: [], people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [] });
     await persist(persisted(get()));
   },
   saveOnboardingProfile: async ({ displayName, username, bio, avatarUrl }: { displayName: string; username: string; bio: string; avatarUrl?: string }) => {
@@ -423,32 +463,70 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Friend request cancelled" });
     return true;
   },
+  blockUser: async (userId) => {
+    const session = get().session;
+    if (!hasSupabaseConfig || !session || !userId || userId === session.user.id) return false;
+    const { error } = await supabase.rpc("block_user", { p_blocked_id: userId });
+    if (error) {
+      set({ toast: "Unable to block this user." });
+      return false;
+    }
+    await get().loadPeople();
+    await get().loadNotifications();
+    set({ toast: "User blocked" });
+    return true;
+  },
+  unblockUser: async (userId) => {
+    const session = get().session;
+    if (!hasSupabaseConfig || !session || !userId || userId === session.user.id) return false;
+    const { error } = await supabase.rpc("unblock_user", { p_blocked_id: userId });
+    if (error) {
+      set({ toast: "Unable to unblock this user." });
+      return false;
+    }
+    await get().loadPeople();
+    set({ toast: "User unblocked" });
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    return true;
+  },
   friendshipState: (userId) => {
     return get().friendshipStates[userId] ?? "none";
   },
   friendCount: () => get().friendIds.length,
   loadPeople: async () => {
     if (!hasSupabaseConfig) {
-      set({ people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, peopleLoading: false, toast: "Supabase config is required to load people" });
+      set({ people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, peopleLoading: false, toast: "Supabase config is required to load people" });
       return;
     }
     const session = get().session;
     if (!session) return;
     set({ peopleLoading: true });
-    const [{ data: profiles, error: profilesError }, { data: friendships, error: friendshipsError }, { data: requests, error: requestsError }] = await Promise.all([
+    const [
+      { data: profiles, error: profilesError },
+      { data: friendships, error: friendshipsError },
+      { data: requests, error: requestsError },
+      { data: blocks, error: blocksError }
+    ] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, display_name, username, bio, avatar_url")
         .eq("onboarding_completed", true)
         .neq("id", session.user.id)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(50),
       supabase.from("friendships").select("id, user_a, user_b").or(`user_a.eq.${session.user.id},user_b.eq.${session.user.id}`),
-      supabase.from("friend_requests").select("id, sender_id, receiver_id, status").eq("status", "pending").or(`sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id}`)
+      supabase.from("friend_requests").select("id, sender_id, receiver_id, status").eq("status", "pending").or(`sender_id.eq.${session.user.id},receiver_id.eq.${session.user.id}`),
+      supabase.from("user_blocks").select("blocked_id, profiles!user_blocks_blocked_id_fkey(id, display_name, username, bio, avatar_url)").eq("blocker_id", session.user.id)
     ]);
-    if (profilesError || friendshipsError || requestsError) {
-      set({ peopleLoading: false, toast: profilesError?.message ?? friendshipsError?.message ?? requestsError?.message ?? "Unable to load people" });
+    if (profilesError || friendshipsError || requestsError || blocksError) {
+      set({ peopleLoading: false, toast: profilesError?.message ?? friendshipsError?.message ?? requestsError?.message ?? blocksError?.message ?? "Unable to load people" });
       return;
     }
+    const blockedUserIds = (blocks ?? []).map((item: any) => item.blocked_id as string);
+    const blockedPeople = (blocks ?? [])
+      .map((item: any) => Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)
+      .filter(Boolean)
+      .map((row: any) => profileRowToUser(row));
     const friendIds = (friendships ?? []).map((item: any) => item.user_a === session.user.id ? item.user_b : item.user_a);
     const incoming = (requests ?? []).filter((item: any) => item.receiver_id === session.user.id).map(friendRequestRow);
     const outgoing = (requests ?? []).filter((item: any) => item.sender_id === session.user.id).map(friendRequestRow);
@@ -457,8 +535,10 @@ export const useBantStore = create<BantState>((set, get) => ({
     incoming.forEach((request) => { friendshipStates[request.senderId] = "pending_received"; });
     outgoing.forEach((request) => { friendshipStates[request.receiverId] = "pending_sent"; });
     set({
-      people: (profiles ?? []).map((row) => profileRowToUser(row)),
-      friendIds,
+      people: (profiles ?? []).filter((row: any) => !blockedUserIds.includes(row.id)).map((row) => profileRowToUser(row)),
+      friendIds: friendIds.filter((id) => !blockedUserIds.includes(id)),
+      blockedUserIds,
+      blockedPeople,
       incomingFriendRequests: incoming,
       outgoingFriendRequests: outgoing,
       friendshipStates,
@@ -558,7 +638,7 @@ export const useBantStore = create<BantState>((set, get) => ({
   loadRoom: async (roomId) => {
     const session = get().session;
     if (!hasSupabaseConfig || !session || !roomId) return null;
-    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
+    const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles!room_members_user_id_fkey(id, display_name, username, bio, avatar_url))";
     const { data, error } = await supabase
       .from("rooms")
       .select(fullSelect)
@@ -578,33 +658,25 @@ export const useBantStore = create<BantState>((set, get) => ({
       const baseSlug = slugify(input.title);
       const maxParticipants = clampRoomCapacity(Number(input.maxParticipants ?? DEFAULT_ROOM_PARTICIPANTS));
       const noiseControlEnabled = Boolean(input.noiseControl);
-      const basePayload = {
-        title: input.title.trim(),
-        slug: `${baseSlug}-${Date.now().toString(36)}`,
-        description: input.description.trim() || "A fresh BANT room.",
-        category: input.category,
-        privacy: input.privacy,
-        host_id: state.session.user.id,
-        owner_id: state.session.user.id,
-        status: "live"
-      };
-      const fullPayload = {
-        ...basePayload,
-        max_participants: maxParticipants,
-        noise_control_enabled: noiseControlEnabled
-      };
-      const fullSelect = "id, title, slug, description, category, privacy, status, owner_id, host_id, max_participants, noise_control_enabled, created_at, room_members(user_id, role, left_at, is_muted, muted_by_owner, muted_at, profiles(id, display_name, username, bio, avatar_url))";
-      const { data, error } = await supabase
-        .from("rooms")
-        .insert(fullPayload)
-        .select(fullSelect)
-        .single();
-      if (error || !data) {
+      const slug = `${baseSlug}-${Date.now().toString(36)}`;
+      const { data, error } = await supabase.rpc("create_room", {
+        p_title: input.title.trim(),
+        p_slug: slug,
+        p_description: input.description.trim() || "A fresh BANT room.",
+        p_category: input.category,
+        p_privacy: input.privacy,
+        p_max_participants: maxParticipants,
+        p_noise_control_enabled: noiseControlEnabled
+      });
+      if (error || !data?.id) {
         set({ toast: error?.message ?? "Unable to create room" });
         return null;
       }
-      const room = shapeRoom(data, state.session.user.id);
-      set({ rooms: upsertRoom(get().rooms, room) });
+      const room = await get().loadRoom(data.id);
+      if (!room) {
+        set({ toast: "Room was created, but could not be loaded." });
+        return null;
+      }
       set({ toast: "Room created" });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       return room;
@@ -613,7 +685,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Supabase config is required to create rooms" });
     return null;
   },
-  joinRoom: async (roomId, role = "listener") => {
+  joinRoom: async (roomId, role = "speaker") => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase config is required to join rooms" });
       return false;
@@ -643,10 +715,11 @@ export const useBantStore = create<BantState>((set, get) => ({
       set({ toast: "Sign in first" });
       return null;
     }
-    const { data, error } = await supabase.rpc("create_room_invite", {
-      p_room_id: roomId,
-      p_invitee_user_id: inviteeId,
-      p_expires_at: null
+    const { data, error } = await supabase.functions.invoke("create-room-invite", {
+      body: {
+        room_id: roomId,
+        invitee_user_id: inviteeId
+      }
     });
     if (error || !data) {
       set({ toast: roomInviteMessage(error?.message) });
@@ -669,7 +742,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Invite revoked" });
     return true;
   },
-  joinRoomWithInvite: async (inviteToken, role = "listener") => {
+  joinRoomWithInvite: async (inviteToken, role = "speaker") => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase config is required to join rooms" });
       return null;
@@ -692,7 +765,7 @@ export const useBantStore = create<BantState>((set, get) => ({
     set({ toast: "Joined room" });
     return member?.room_id ?? null;
   },
-  joinRoomWithInviteId: async (inviteId, role = "listener") => {
+  joinRoomWithInviteId: async (inviteId, role = "speaker") => {
     if (!hasSupabaseConfig) {
       set({ toast: "Supabase config is required to join rooms" });
       return null;
@@ -723,45 +796,28 @@ export const useBantStore = create<BantState>((set, get) => ({
     if (!session) return false;
     const room = get().rooms.find((item) => item.id === roomId);
 
-    const { error: leaveError } = await supabase
+    if (room?.ownerId === session.user.id) {
+      const { error } = await supabase.rpc("end_room", { p_room_id: roomId });
+      if (error) {
+        set({ toast: roomInviteMessage(error.message) });
+        return false;
+      }
+      set({ rooms: get().rooms.filter((item) => item.id !== roomId), toast: "Room ended" });
+      return true;
+    }
+
+    const { error } = await supabase
       .from("room_members")
       .update({ left_at: new Date().toISOString() })
       .eq("room_id", roomId)
       .eq("user_id", session.user.id);
-    if (leaveError) {
-      set({ toast: leaveError.message });
+
+    if (error) {
+      set({ toast: error.message });
       return false;
     }
 
-    const { data: remainingMembers } = await supabase
-      .from("room_members")
-      .select("user_id")
-      .eq("room_id", roomId)
-      .is("left_at", null);
-
-    if ((remainingMembers ?? []).length === 0) {
-      set({ rooms: get().rooms.filter((item) => item.id !== roomId) });
-      set({ toast: "Room closed because it was empty" });
-      return true;
-    }
-
-    if (room?.ownerId === session.user.id) {
-      const { error: endError } = await supabase
-        .from("rooms")
-        .update({ status: "ended", ended_at: new Date().toISOString() })
-        .eq("id", roomId);
-      if (endError) {
-        set({ toast: endError.message });
-        return false;
-      }
-    }
-
-    if (room?.ownerId === session.user.id) {
-      set({ rooms: get().rooms.filter((item) => item.id !== roomId) });
-    } else {
-      await get().loadRoom(roomId);
-    }
-    set({ toast: room?.ownerId === session.user.id ? "Room ended" : "Left room" });
+    set({ rooms: get().rooms.filter((item) => item.id !== roomId), toast: "Left room" });
     return true;
   },
   inviteToRoom: async (roomId, inviteeId) => {
@@ -772,7 +828,7 @@ export const useBantStore = create<BantState>((set, get) => ({
   resetClientState: async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (hasSupabaseConfig) await supabase.auth.signOut();
-    set({ authenticated: false, currentUser: null, themePreference: "system", hydrated: true, session: null, profile: null, authLoading: false, roomsLoading: false, peopleLoading: false, rooms: [], people: [], friendIds: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [], toast: "Client state reset" });
+    set({ authenticated: false, currentUser: null, themePreference: "system", hydrated: true, session: null, profile: null, authLoading: false, roomsLoading: false, peopleLoading: false, rooms: [], people: [], friendIds: [], blockedUserIds: [], blockedPeople: [], incomingFriendRequests: [], outgoingFriendRequests: [], friendshipStates: {}, notifications: [], toast: "Client state reset" });
   }
 }));
 
@@ -881,6 +937,7 @@ function shapeRoom(row: any, currentUserId: string): Room {
     speakerIds: speakers.map((user) => user.id),
     listenerIds: listeners.map((user) => user.id),
     participantCount: activeMembers.length,
+    speakerCount: speakers.length,
     maxParticipants: Number(row.max_participants ?? Math.max(activeMembers.length, DEFAULT_ROOM_PARTICIPANTS)),
     noiseControlEnabled: Boolean(row.noise_control_enabled),
     isLive: row.status === "live",
@@ -929,6 +986,7 @@ function shapeRoomSummary(row: any): Room {
     speakerIds: [],
     listenerIds: [],
     participantCount: Number(row.participant_count ?? 0),
+    speakerCount: Number(row.speaker_count ?? 0),
     maxParticipants: Number(row.max_participants ?? DEFAULT_ROOM_PARTICIPANTS),
     noiseControlEnabled: Boolean(row.noise_control_enabled),
     isLive: row.status === "live",
