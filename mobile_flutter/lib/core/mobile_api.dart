@@ -128,9 +128,14 @@ class MobileApi {
     return roomId;
   }
 
-  Future<List<Map<String, dynamic>>> people() async {
+  Future<Map<String, dynamic>> peopleState() async {
     final data = await call('people');
-    return List<Map<String, dynamic>>.from(data?['people'] ?? const []);
+    return Map<String, dynamic>.from(data);
+  }
+
+  Future<List<Map<String, dynamic>>> people() async {
+    final data = await peopleState();
+    return List<Map<String, dynamic>>.from(data['people'] ?? const []);
   }
 
   Future<List<Map<String, dynamic>>> notifications() async {
@@ -151,16 +156,16 @@ class MobileApi {
     await call('send_friend_request', {'user_id': userId});
   }
 
-  Future<void> acceptFriendRequest(String userId) async {
-    await call('accept_friend_request', {'user_id': userId});
+  Future<void> acceptFriendRequest(String requestId) async {
+    await call('accept_friend_request', {'request_id': requestId});
   }
 
-  Future<void> declineFriendRequest(String userId) async {
-    await call('decline_friend_request', {'user_id': userId});
+  Future<void> declineFriendRequest(String requestId) async {
+    await call('decline_friend_request', {'request_id': requestId});
   }
 
-  Future<void> cancelFriendRequest(String userId) async {
-    await call('cancel_friend_request', {'user_id': userId});
+  Future<void> cancelFriendRequest(String requestId) async {
+    await call('cancel_friend_request', {'request_id': requestId});
   }
 
   Future<void> blockUser(String userId) async {
