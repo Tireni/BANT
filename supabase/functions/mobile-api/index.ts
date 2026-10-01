@@ -492,6 +492,15 @@ Deno.serve(async (req) => {
         return json({ updated: true });
       }
 
+      case "clear_notifications": {
+        const { error } = await admin
+          .from("notifications")
+          .delete()
+          .eq("user_id", user.id);
+        if (error) return fail(error);
+        return json({ cleared: true });
+      }
+
       case "submit_feedback": {
         const category = typeof body.category === "string" ? body.category : "suggestion";
         const message = requireString(body.message, "message").trim();
