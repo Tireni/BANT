@@ -11,6 +11,7 @@ import '../ui/bant_button.dart';
 import '../ui/bant_participant_grid.dart';
 import '../ui/bant_theme.dart';
 import '../ui/room_moderation_panel.dart';
+import 'in_room_social_sheet.dart';
 import 'room_invite_sheet.dart';
 
 class BantRoomScreen extends StatefulWidget {
@@ -642,6 +643,26 @@ class _BantRoomScreenState extends State<BantRoomScreen> {
                                               moderation.toggleUser(
                                                 userId,
                                                 ownerId: room.ownerId,
+                                              );
+                                            },
+                                            onUserPressed: (participant) {
+                                              showModalBottomSheet<void>(
+                                                context: context,
+                                                isScrollControlled: true,
+                                                backgroundColor:
+                                                    BantTheme.surface,
+                                                shape:
+                                                    const RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.vertical(
+                                                    top: Radius.circular(24),
+                                                  ),
+                                                ),
+                                                builder: (_) =>
+                                                    InRoomSocialSheet(
+                                                  api: widget.api,
+                                                  participant: participant,
+                                                ),
                                               );
                                             },
                                           ),
