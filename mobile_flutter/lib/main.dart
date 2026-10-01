@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,6 +12,7 @@ import 'core/config.dart';
 import 'core/invite_links.dart';
 import 'core/mobile_api.dart';
 import 'core/pending_invite_store.dart';
+import 'core/push_notification_service.dart';
 import 'core/theme_controller.dart';
 import 'models/profile.dart';
 import 'models/room.dart';
@@ -37,6 +40,16 @@ Future<void> main() async {
     publishableKey: BantConfig.supabaseAnonKey,
   );
 
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(
+      bantFirebaseMessagingBackgroundHandler,
+    );
+  } catch (_) {
+    // Firebase is optional in local/dev builds until platform credentials
+    // (google-services.json / GoogleService-Info.plist) are installed.
+  }
+
   runApp(const BantMobileApp());
 }
 
@@ -49,13 +62,16 @@ class BantMobileApp extends StatefulWidget {
 
 class _BantMobileAppState extends State<BantMobileApp> {
   late final BantThemeController themeController;
+  late final BantPushService pushService;
 
   @override
   void initState() {
     super.initState();
     themeController = BantThemeController();
+    pushService = BantPushService();
     themeController.addListener(_themeChanged);
     themeController.load();
+    unawaited(pushService.initialize());
   }
 
   void _themeChanged() {
@@ -66,6 +82,7 @@ class _BantMobileAppState extends State<BantMobileApp> {
   void dispose() {
     themeController.removeListener(_themeChanged);
     themeController.dispose();
+    unawaited(pushService.dispose());
     super.dispose();
   }
 
@@ -77,17 +94,22 @@ class _BantMobileAppState extends State<BantMobileApp> {
       theme: BantTheme.light(),
       darkTheme: BantTheme.dark(),
       themeMode: themeController.mode,
-      home: AuthGate(themeController: themeController),
+      home: AuthGate(
+        themeController: themeController,
+        pushService: pushService,
+      ),
     );
   }
 }
 
 class AuthGate extends StatefulWidget {
   final BantThemeController themeController;
+  final BantPushService pushService;
 
   const AuthGate({
     super.key,
     required this.themeController,
+    required this.pushService,
   });
 
   @override
@@ -114,7 +136,12 @@ class _AuthGateState extends State<AuthGate> {
     pendingInviteStore = PendingInviteStore();
     appLinks = AppLinks();
     authChanges = auth.changes;
-    authChanges.listen((_) => bootstrap());
+    authChanges.listen((event) {
+      if (event.event == AuthChangeEvent.signedOut) {
+        unawaited(widget.pushService.resetAfterSignOut());
+      }
+      bootstrap();
+    });
     _startInviteLinks();
     bootstrap();
   }
@@ -189,6 +216,7 @@ class _AuthGateState extends State<AuthGate> {
         profile = next;
         loading = false;
       });
+      unawaited(widget.pushService.registerCurrentDevice(api));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -251,6 +279,7 @@ class _AuthGateState extends State<AuthGate> {
       api: api,
       profile: current,
       themeController: widget.themeController,
+      pushService: widget.pushService,
     );
   }
 }
@@ -1163,6 +1192,7 @@ class HomeShell extends StatefulWidget {
   final MobileApi api;
   final BantProfile profile;
   final BantThemeController themeController;
+  final BantPushService pushService;
 
   const HomeShell({
     super.key,
@@ -1170,6 +1200,7 @@ class HomeShell extends StatefulWidget {
     required this.api,
     required this.profile,
     required this.themeController,
+    required this.pushService,
   });
 
   @override
@@ -1179,18 +1210,52 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
   late final BantAppState appState;
+  StreamSubscription<BantPushIntent>? _pushSubscription;
 
   @override
   void initState() {
     super.initState();
     appState = BantAppState(widget.api);
     appState.load();
+    _pushSubscription = widget.pushService.intents.listen(_handlePushIntent);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = widget.pushService.takePendingIntent();
+      if (pending != null) {
+        _handlePushIntent(pending);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _pushSubscription?.cancel();
     appState.dispose();
     super.dispose();
+  }
+
+  Future<void> _handlePushIntent(BantPushIntent intent) async {
+    if (!mounted) return;
+
+    if (intent.type == BantPushIntentType.friendRequest) {
+      setState(() => index = 2);
+      return;
+    }
+
+    final roomId = intent.roomId;
+    if (roomId == null || roomId.isEmpty) return;
+
+    try {
+      final data = await widget.api.room(roomId);
+      if (!mounted) return;
+      openRoom(BantRoom.fromJson(data));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('That BANT room is no longer available.'),
+        ),
+      );
+    }
   }
 
   void openRoom(BantRoom room) {
