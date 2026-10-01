@@ -612,14 +612,38 @@ Deno.serve(async (req) => {
         const requestId = requireString(body.request_id, "request_id");
         const { data: request } = await admin
           .from("friend_requests")
-          .select("sender_id,receiver_id")
+          .select("sender_id,receiver_id,status")
           .eq("id", requestId)
           .maybeSingle();
+
+        if (!request) return json({ error: "Friend request not found" }, 404);
+        if (request.receiver_id !== user.id) {
+          return json({ error: "Only the receiver can accept this request" }, 403);
+        }
+
+        if (request.status === "accepted") {
+          return json({ result: true, already_accepted: true });
+        }
+        if (request.status !== "pending") {
+          return json({ error: "Friend request is not pending" }, 400);
+        }
 
         const { data, error } = await userClient.rpc("accept_friend_request", {
           p_request_id: requestId
         });
-        if (error) return fail(error);
+        if (error) {
+          if ((error.message ?? "").includes("Friend request is not pending")) {
+            const { data: latest } = await admin
+              .from("friend_requests")
+              .select("status")
+              .eq("id", requestId)
+              .maybeSingle();
+            if (latest?.status === "accepted") {
+              return json({ result: true, already_accepted: true });
+            }
+          }
+          return fail(error);
+        }
 
         if (request?.sender_id && request.receiver_id === user.id) {
           try {
