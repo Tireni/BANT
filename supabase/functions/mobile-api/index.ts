@@ -206,9 +206,32 @@ Deno.serve(async (req) => {
         const title = requireString(body.title, "title").trim();
         const description = typeof body.description === "string" ? body.description.trim() : "";
         const category = typeof body.category === "string" ? body.category : "General";
-        const privacy = body.privacy === "private" ? "private" : "public";
-        const maxParticipants = Math.max(5, Math.min(100, Number(body.max_participants ?? 20)));
+        const privacy = typeof body.privacy === "string" ? body.privacy : "public";
+        const maxParticipants = Number(body.max_participants ?? 20);
         const noise = Boolean(body.noise_control_enabled);
+
+        const allowedCategories = new Set([
+          "Feed", "Gaming", "Anime", "Art", "Philosophy", "Music", "Technology",
+          "Movies", "Sports", "Books", "Fashion", "Culture", "Relationships",
+          "Business", "Comedy", "Science", "Lifestyle", "Food", "Travel", "General"
+        ]);
+
+        if (title.length < 3 || title.length > 80) {
+          return json({ error: "Room title must be between 3 and 80 characters" }, 400);
+        }
+        if (description.length > 280) {
+          return json({ error: "Room description must be 280 characters or fewer" }, 400);
+        }
+        if (!allowedCategories.has(category)) {
+          return json({ error: "Invalid room category" }, 400);
+        }
+        if (privacy !== "public" && privacy !== "private") {
+          return json({ error: "Invalid room privacy" }, 400);
+        }
+        if (!Number.isInteger(maxParticipants) || maxParticipants < 5 || maxParticipants > 100) {
+          return json({ error: "Room capacity must be between 5 and 100" }, 400);
+        }
+
         const slug = slugify(title) + "-" + Date.now().toString(36);
 
         const { data, error } = await userClient.rpc("create_room", {
