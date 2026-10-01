@@ -138,6 +138,20 @@ class MobileApi {
     return List<Map<String, dynamic>>.from(data['people'] ?? const []);
   }
 
+  Future<void> registerPushToken({
+    required String token,
+    required String platform,
+  }) async {
+    await call('register_push_token', {
+      'token': token,
+      'platform': platform,
+    });
+  }
+
+  Future<void> unregisterPushToken(String token) async {
+    await call('unregister_push_token', {'token': token});
+  }
+
   Future<List<Map<String, dynamic>>> notifications() async {
     final data = await call('notifications');
     return List<Map<String, dynamic>>.from(data?['notifications'] ?? const []);
