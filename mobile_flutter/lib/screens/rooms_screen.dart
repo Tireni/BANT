@@ -6,7 +6,6 @@ import '../state/bant_app_state.dart';
 import '../ui/bant_room_card.dart';
 import '../ui/bant_theme.dart';
 
-
 class BantRoomsScreen extends StatefulWidget {
   final BantAppState state;
   final ValueChanged<BantRoom> onOpenRoom;
@@ -36,6 +35,8 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = BantTheme.of(context);
+
     return AnimatedBuilder(
       animation: widget.state,
       builder: (context, _) {
@@ -48,32 +49,33 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
         return Stack(
           children: [
             RefreshIndicator(
+              color: colors.blue,
               onRefresh: widget.state.refreshRooms,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 120),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
                 children: [
-                  const Text(
+                  Text(
                     'Explore rooms',
                     style: TextStyle(
-                      color: BantTheme.text,
+                      color: colors.text,
                       fontSize: 30,
-                      height: 1.1,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: search,
                     onChanged: (_) => setState(() {}),
+                    style: TextStyle(color: colors.text),
                     decoration: const InputDecoration(
                       hintText: 'Search conversations',
                       prefixIcon: Icon(Icons.search_rounded),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   SizedBox(
-                    height: 42,
+                    height: 38,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: bantRoomCategories.length,
@@ -81,18 +83,33 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
                       itemBuilder: (context, index) {
                         final item = bantRoomCategories[index];
                         final selected = category == item;
-                        return ChoiceChip(
-                          label: Text(item),
-                          selected: selected,
-                          selectedColor: BantTheme.blue,
-                          labelStyle: TextStyle(
-                            color: selected ? Colors.white : BantTheme.text,
-                            fontWeight: FontWeight.w800,
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: () => setState(() => category = item),
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color:
+                                  selected ? colors.blue : colors.surface,
+                              border: Border.all(
+                                color:
+                                    selected ? colors.blue : colors.border,
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              item,
+                              style: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : colors.secondary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
-                          side: BorderSide(
-                            color: selected ? BantTheme.blue : BantTheme.border,
-                          ),
-                          onSelected: (_) => setState(() => category = item),
                         );
                       },
                     ),
@@ -104,6 +121,7 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
                         _FilterChip(
                           label: item,
                           selected: filter == item,
+                          colors: colors,
                           onTap: () => setState(() => filter = item),
                         ),
                         if (item != 'New') const SizedBox(width: 8),
@@ -112,12 +130,17 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
                   ),
                   const SizedBox(height: 18),
                   if (widget.state.loading && widget.state.rooms.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 70),
-                      child: Center(child: CircularProgressIndicator()),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 70),
+                      child: Center(
+                        child: CircularProgressIndicator(color: colors.blue),
+                      ),
                     )
                   else if (rooms.isEmpty)
-                    _EmptyRooms(onStartRoom: widget.onStartRoom)
+                    _EmptyRooms(
+                      onStartRoom: widget.onStartRoom,
+                      colors: colors,
+                    )
                   else
                     for (final room in rooms) ...[
                       BantRoomCard(
@@ -130,8 +153,8 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
                     const SizedBox(height: 10),
                     Text(
                       widget.state.error!,
-                      style: const TextStyle(
-                        color: BantTheme.danger,
+                      style: TextStyle(
+                        color: colors.danger,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -144,10 +167,13 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
               bottom: 22,
               child: FloatingActionButton(
                 heroTag: 'bant-create-room',
-                backgroundColor: BantTheme.blue,
+                backgroundColor: colors.blue,
                 foregroundColor: Colors.white,
+                elevation: Theme.of(context).brightness == Brightness.dark
+                    ? 6
+                    : 4,
                 onPressed: widget.onStartRoom,
-                child: const Icon(Icons.add_rounded, size: 29),
+                child: const Icon(Icons.add_rounded, size: 28),
               ),
             ),
           ],
@@ -160,30 +186,34 @@ class _BantRoomsScreenState extends State<BantRoomsScreen> {
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
+  final BantPalette colors;
   final VoidCallback onTap;
 
   const _FilterChip({
     required this.label,
     required this.selected,
+    required this.colors,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? BantTheme.blue : const Color(0xFFEFF4F8),
+      color: selected ? colors.blue : colors.soft,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 36),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : BantTheme.secondary,
+              color: selected ? Colors.white : colors.secondary,
               fontSize: 12,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
@@ -194,7 +224,12 @@ class _FilterChip extends StatelessWidget {
 
 class _EmptyRooms extends StatelessWidget {
   final VoidCallback onStartRoom;
-  const _EmptyRooms({required this.onStartRoom});
+  final BantPalette colors;
+
+  const _EmptyRooms({
+    required this.onStartRoom,
+    required this.colors,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -202,34 +237,35 @@ class _EmptyRooms extends StatelessWidget {
       margin: const EdgeInsets.only(top: 40),
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: BantTheme.surface,
-        border: Border.all(color: BantTheme.border),
+        color: colors.surface,
+        border: Border.all(color: colors.border),
         borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
         children: [
-          const Icon(
+          Icon(
             Icons.forum_outlined,
             size: 36,
-            color: BantTheme.blue,
+            color: colors.blue,
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Nothing live right now.',
             style: TextStyle(
-              color: BantTheme.text,
+              color: colors.text,
               fontSize: 18,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 5),
-          const Text(
+          Text(
             'Start a room.',
-            style: TextStyle(color: BantTheme.secondary),
+            style: TextStyle(color: colors.secondary),
           ),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: onStartRoom,
+            style: FilledButton.styleFrom(backgroundColor: colors.blue),
             child: const Text('Start a room'),
           ),
         ],
