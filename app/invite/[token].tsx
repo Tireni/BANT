@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BantButton } from "@/components/common/BantButton";
 import { useTheme } from "@/hooks/useTheme";
@@ -32,6 +32,7 @@ export default function InviteRoute() {
   const [loadingPreview, setLoadingPreview] = useState(true);
   const [joining, setJoining] = useState(false);
   const [joinAttempted, setJoinAttempted] = useState(false);
+  const [appOpenAttempted, setAppOpenAttempted] = useState(false);
 
   useEffect(() => {
     if (!inviteToken || !hasSupabaseConfig) {
@@ -80,6 +81,56 @@ export default function InviteRoute() {
   const invalid = !loadingPreview && !preview;
   const unavailable = invalid || Boolean(preview && (preview.invite_status !== "active" || preview.room_status !== "live"));
 
+  const openInBantApp = async () => {
+    if (!inviteToken) return;
+
+    const deepLink = `bant://invite/${inviteToken}`;
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const fallback = `${window.location.origin}/invite/${inviteToken}`;
+      const ua = window.navigator.userAgent || "";
+      const isAndroid = /Android/i.test(ua);
+
+      if (isAndroid) {
+        const intentUrl =
+          `intent://invite/${inviteToken}#Intent;` +
+          `scheme=bant;` +
+          `package=com.bant.app.bant_mobile;` +
+          `S.browser_fallback_url=${encodeURIComponent(fallback)};` +
+          `end`;
+        window.location.href = intentUrl;
+        return;
+      }
+
+      window.location.href = deepLink;
+      return;
+    }
+
+    await Linking.openURL(deepLink);
+  };
+
+  useEffect(() => {
+    if (
+      Platform.OS !== "web" ||
+      !inviteToken ||
+      appOpenAttempted ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const ua = window.navigator.userAgent || "";
+    if (!/Android/i.test(ua)) return;
+
+    setAppOpenAttempted(true);
+
+    const timer = window.setTimeout(() => {
+      void openInBantApp();
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [appOpenAttempted, inviteToken]);
+
   const continueToAuth = async (mode: "login" | "signup") => {
     if (!inviteToken) return;
     await AsyncStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteToken);
@@ -102,6 +153,15 @@ export default function InviteRoute() {
         <Text style={[styles.body, { color: theme.colors.secondary }]}>
           {preview?.room_description || "Join the conversation on BANT."}
         </Text>
+
+        {Platform.OS === "web" && !unavailable ? (
+          <View style={styles.appActions}>
+            <BantButton title="Open in BANT app" onPress={() => void openInBantApp()} />
+            <Text style={[styles.appHint, { color: theme.colors.secondary }]}>
+              If BANT is installed, this opens the app and takes you straight to the invited room.
+            </Text>
+          </View>
+        ) : null}
 
         {unavailable ? (
           <Text style={[styles.status, { color: theme.colors.danger }]}>
@@ -137,5 +197,7 @@ const styles = StyleSheet.create({
   meta: { fontFamily: "PlusJakartaSans_700Bold", fontSize: 12, textAlign: "center" },
   body: { fontFamily: "PlusJakartaSans_500Medium", fontSize: 14, lineHeight: 21, textAlign: "center" },
   status: { fontFamily: "PlusJakartaSans_600SemiBold", fontSize: 13, lineHeight: 19, textAlign: "center" },
-  actions: { width: "100%", gap: 10, marginTop: 4 }
+  actions: { width: "100%", gap: 10, marginTop: 4 },
+  appActions: { width: "100%", gap: 8, marginTop: 4 },
+  appHint: { fontFamily: "PlusJakartaSans_500Medium", fontSize: 12, lineHeight: 17, textAlign: "center" }
 });
