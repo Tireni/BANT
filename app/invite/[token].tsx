@@ -32,7 +32,6 @@ export default function InviteRoute() {
   const [loadingPreview, setLoadingPreview] = useState(true);
   const [joining, setJoining] = useState(false);
   const [joinAttempted, setJoinAttempted] = useState(false);
-  const [appOpenAttempted, setAppOpenAttempted] = useState(false);
 
   useEffect(() => {
     if (!inviteToken || !hasSupabaseConfig) {
@@ -53,19 +52,6 @@ export default function InviteRoute() {
       active = false;
     };
   }, [inviteToken]);
-
-  useEffect(() => {
-    if (!inviteToken || !authenticated || !profile?.onboarding_completed || joining || joinAttempted) return;
-    if (preview && (preview.invite_status !== "active" || preview.room_status !== "live")) return;
-    setJoining(true);
-    setJoinAttempted(true);
-    void joinRoomWithInvite(inviteToken).then(async (roomId) => {
-      setJoining(false);
-      if (!roomId) return;
-      await AsyncStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
-      router.replace(`/room/${roomId}`);
-    });
-  }, [authenticated, inviteToken, joinAttempted, joinRoomWithInvite, joining, preview, profile?.onboarding_completed]);
 
   if (!hydrated) {
     return (
@@ -109,27 +95,30 @@ export default function InviteRoute() {
     await Linking.openURL(deepLink);
   };
 
-  useEffect(() => {
-    if (
-      Platform.OS !== "web" ||
-      !inviteToken ||
-      appOpenAttempted ||
-      typeof window === "undefined"
-    ) {
+  const continueOnWeb = async () => {
+    if (!inviteToken || unavailable || joining) return;
+
+    if (!authenticated) {
+      await AsyncStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteToken);
+      router.push({ pathname: "/auth/sign-in", params: { mode: "login" } } as any);
       return;
     }
 
-    const ua = window.navigator.userAgent || "";
-    if (!/Android/i.test(ua)) return;
+    if (!profile?.onboarding_completed) {
+      await AsyncStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteToken);
+      router.replace(onboardingRoute(profile) as any);
+      return;
+    }
 
-    setAppOpenAttempted(true);
+    setJoining(true);
+    setJoinAttempted(true);
+    const roomId = await joinRoomWithInvite(inviteToken);
+    setJoining(false);
+    if (!roomId) return;
 
-    const timer = window.setTimeout(() => {
-      void openInBantApp();
-    }, 450);
-
-    return () => window.clearTimeout(timer);
-  }, [appOpenAttempted, inviteToken]);
+    await AsyncStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+    router.replace(`/room/${roomId}`);
+  };
 
   const continueToAuth = async (mode: "login" | "signup") => {
     if (!inviteToken) return;
@@ -156,9 +145,18 @@ export default function InviteRoute() {
 
         {Platform.OS === "web" && !unavailable ? (
           <View style={styles.appActions}>
-            <BantButton title="Open in BANT app" onPress={() => void openInBantApp()} />
+            <BantButton
+              title={joining ? "Joining room..." : "Continue on web"}
+              onPress={() => void continueOnWeb()}
+              disabled={joining}
+            />
+            <BantButton
+              title="Open in BANT app"
+              variant="ghost"
+              onPress={() => void openInBantApp()}
+            />
             <Text style={[styles.appHint, { color: theme.colors.secondary }]}>
-              If BANT is installed, this opens the app and takes you straight to the invited room.
+              Choose how you want to join. BANT will not open or join automatically.
             </Text>
           </View>
         ) : null}
@@ -169,7 +167,7 @@ export default function InviteRoute() {
           </Text>
         ) : authenticated ? (
           <Text style={[styles.status, { color: theme.colors.mint }]}>
-            {joining ? "Joining you to the room..." : "Your BANT session is active. Joining room..."}
+            {joining ? "Joining you to the room..." : "Your BANT session is ready. Choose how you want to continue."}
           </Text>
         ) : (
           <View style={styles.actions}>
