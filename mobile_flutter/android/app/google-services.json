@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "611767891453",
+    "project_id": "bant-7a53f",
+    "storage_bucket": "bant-7a53f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:611767891453:android:3a2ffbabe692f38f641594",
+        "android_client_info": {
+          "package_name": "com.bant.app.bant_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQJhdPwrflb4L8gvVIV_f98N77ERDNNoA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

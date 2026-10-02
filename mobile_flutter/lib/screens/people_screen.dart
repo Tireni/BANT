@@ -7,10 +7,14 @@ import '../ui/bant_theme.dart';
 
 class BantPeopleScreen extends StatefulWidget {
   final MobileApi api;
+  final String initialTab;
+  final ValueChanged<int>? onUnreadChanged;
 
   const BantPeopleScreen({
     super.key,
     required this.api,
+    this.initialTab = 'Discover',
+    this.onUnreadChanged,
   });
 
   @override
@@ -20,13 +24,14 @@ class BantPeopleScreen extends StatefulWidget {
 class _BantPeopleScreenState extends State<BantPeopleScreen> {
   late final BantSocialState state;
   final search = TextEditingController();
-  String tab = 'Discover';
+  late String tab;
   List<Map<String, dynamic>> notifications = const [];
   bool notificationsLoading = false;
 
   @override
   void initState() {
     super.initState();
+    tab = widget.initialTab;
     state = BantSocialState(
       api: widget.api,
       supabase: Supabase.instance.client,
@@ -46,10 +51,13 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
     try {
       final items = await widget.api.notifications();
       if (!mounted) return;
+      final unreadCount =
+          items.where((item) => item['read_at'] == null).length;
       setState(() {
         notifications = items;
         notificationsLoading = false;
       });
+      widget.onUnreadChanged?.call(unreadCount);
     } catch (_) {
       if (mounted) setState(() => notificationsLoading = false);
     }
@@ -59,6 +67,19 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
     await widget.api.markNotificationsRead();
     await _loadNotifications();
   }
+
+  Future<void> _clearAllNotifications() async {
+    await widget.api.clearNotifications();
+    await _loadNotifications();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notifications cleared')),
+      );
+    }
+  }
+
+  int get unreadCount =>
+      notifications.where((item) => item['read_at'] == null).length;
 
   @override
   void dispose() {
@@ -301,15 +322,48 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
                         ),
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
-                          child: Text(
-                            item,
-                            style: TextStyle(
-                              color: tab == item
-                                  ? Colors.white
-                                  : colors.secondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                item,
+                                style: TextStyle(
+                                  color: tab == item
+                                      ? Colors.white
+                                      : colors.secondary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              if (item == 'Notifications' &&
+                                  unreadCount > 0) ...[
+                                const SizedBox(width: 5),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: tab == item
+                                        ? Colors.white
+                                        : colors.danger,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    unreadCount > 99
+                                        ? '99+'
+                                        : unreadCount.toString(),
+                                    style: TextStyle(
+                                      color: tab == item
+                                          ? colors.blue
+                                          : Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
@@ -319,7 +373,75 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          if (tab == 'Notifications')
+          if (tab == 'Notifications') ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Text(
+                        'Notifications',
+                        style: TextStyle(
+                          color: colors.text,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.soft,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          notifications.length.toString(),
+                          style: TextStyle(
+                            color: colors.blue,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (notifications.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: _clearAllNotifications,
+                    icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                    label: const Text('Clear all'),
+                  ),
+              ],
+            ),
+            if (unreadCount > 0) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: colors.danger,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$unreadCount unread',
+                    style: TextStyle(
+                      color: colors.danger,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 12),
             _NotificationsList(
               api: widget.api,
               loading: notificationsLoading,
@@ -329,7 +451,8 @@ class _BantPeopleScreenState extends State<BantPeopleScreen> {
                 await state.load();
                 await _loadNotifications();
               },
-            )
+            ),
+          ]
           else if (state.loading && state.people.isEmpty && tab != 'Blocked')
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 50),

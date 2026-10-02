@@ -403,7 +403,9 @@ export const useBantStore = create<BantState>((set, get) => ({
     }
     const session = get().session;
     if (!session || !userId || userId === session.user.id) return false;
-    const { error } = await supabase.rpc("send_friend_request", { p_receiver_id: userId });
+    const { error } = await supabase.functions.invoke("mobile-api", {
+      body: { action: "send_friend_request", user_id: userId }
+    });
     if (error) {
       set({ toast: error.message });
       return false;
@@ -420,7 +422,9 @@ export const useBantStore = create<BantState>((set, get) => ({
       set({ toast: "Friend request not found" });
       return false;
     }
-    const { error } = await supabase.rpc("accept_friend_request", { p_request_id: request.id });
+    const { error } = await supabase.functions.invoke("mobile-api", {
+      body: { action: "accept_friend_request", request_id: request.id }
+    });
     if (error) {
       set({ toast: error.message });
       return false;
@@ -655,24 +659,28 @@ export const useBantStore = create<BantState>((set, get) => ({
   createRoom: async (input) => {
     const state = get();
     if (hasSupabaseConfig && state.session) {
-      const baseSlug = slugify(input.title);
       const maxParticipants = clampRoomCapacity(Number(input.maxParticipants ?? DEFAULT_ROOM_PARTICIPANTS));
       const noiseControlEnabled = Boolean(input.noiseControl);
-      const slug = `${baseSlug}-${Date.now().toString(36)}`;
-      const { data, error } = await supabase.rpc("create_room", {
-        p_title: input.title.trim(),
-        p_slug: slug,
-        p_description: input.description.trim() || "A fresh BANT room.",
-        p_category: input.category,
-        p_privacy: input.privacy,
-        p_max_participants: maxParticipants,
-        p_noise_control_enabled: noiseControlEnabled
+      const { data, error } = await supabase.functions.invoke("mobile-api", {
+        body: {
+          action: "create_room",
+          title: input.title.trim(),
+          description: input.description.trim() || "A fresh BANT room.",
+          category: input.category,
+          privacy: input.privacy,
+          max_participants: maxParticipants,
+          noise_control_enabled: noiseControlEnabled
+        }
       });
-      if (error || !data?.id) {
+      const createdRoom = data?.room;
+      const createdRoomId = Array.isArray(createdRoom)
+        ? createdRoom[0]?.id
+        : createdRoom?.id;
+      if (error || !createdRoomId) {
         set({ toast: error?.message ?? "Unable to create room" });
         return null;
       }
-      const room = await get().loadRoom(data.id);
+      const room = await get().loadRoom(createdRoomId);
       if (!room) {
         set({ toast: "Room was created, but could not be loaded." });
         return null;

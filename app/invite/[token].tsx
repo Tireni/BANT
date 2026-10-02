@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BantButton } from "@/components/common/BantButton";
 import { useTheme } from "@/hooks/useTheme";
@@ -53,19 +53,6 @@ export default function InviteRoute() {
     };
   }, [inviteToken]);
 
-  useEffect(() => {
-    if (!inviteToken || !authenticated || !profile?.onboarding_completed || joining || joinAttempted) return;
-    if (preview && (preview.invite_status !== "active" || preview.room_status !== "live")) return;
-    setJoining(true);
-    setJoinAttempted(true);
-    void joinRoomWithInvite(inviteToken).then(async (roomId) => {
-      setJoining(false);
-      if (!roomId) return;
-      await AsyncStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
-      router.replace(`/room/${roomId}`);
-    });
-  }, [authenticated, inviteToken, joinAttempted, joinRoomWithInvite, joining, preview, profile?.onboarding_completed]);
-
   if (!hydrated) {
     return (
       <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -79,6 +66,59 @@ export default function InviteRoute() {
   const expired = preview?.invite_status === "expired";
   const invalid = !loadingPreview && !preview;
   const unavailable = invalid || Boolean(preview && (preview.invite_status !== "active" || preview.room_status !== "live"));
+
+  const openInBantApp = async () => {
+    if (!inviteToken) return;
+
+    const deepLink = `bant://invite/${inviteToken}`;
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const fallback = `${window.location.origin}/invite/${inviteToken}`;
+      const ua = window.navigator.userAgent || "";
+      const isAndroid = /Android/i.test(ua);
+
+      if (isAndroid) {
+        const intentUrl =
+          `intent://invite/${inviteToken}#Intent;` +
+          `scheme=bant;` +
+          `package=com.bant.app.bant_mobile;` +
+          `S.browser_fallback_url=${encodeURIComponent(fallback)};` +
+          `end`;
+        window.location.href = intentUrl;
+        return;
+      }
+
+      window.location.href = deepLink;
+      return;
+    }
+
+    await Linking.openURL(deepLink);
+  };
+
+  const continueOnWeb = async () => {
+    if (!inviteToken || unavailable || joining) return;
+
+    if (!authenticated) {
+      await AsyncStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteToken);
+      router.push({ pathname: "/auth/sign-in", params: { mode: "login" } } as any);
+      return;
+    }
+
+    if (!profile?.onboarding_completed) {
+      await AsyncStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteToken);
+      router.replace(onboardingRoute(profile) as any);
+      return;
+    }
+
+    setJoining(true);
+    setJoinAttempted(true);
+    const roomId = await joinRoomWithInvite(inviteToken);
+    setJoining(false);
+    if (!roomId) return;
+
+    await AsyncStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
+    router.replace(`/room/${roomId}`);
+  };
 
   const continueToAuth = async (mode: "login" | "signup") => {
     if (!inviteToken) return;
@@ -103,13 +143,31 @@ export default function InviteRoute() {
           {preview?.room_description || "Join the conversation on BANT."}
         </Text>
 
+        {Platform.OS === "web" && !unavailable ? (
+          <View style={styles.appActions}>
+            <BantButton
+              title={joining ? "Joining room..." : "Continue on web"}
+              onPress={() => void continueOnWeb()}
+              disabled={joining}
+            />
+            <BantButton
+              title="Open in BANT app"
+              variant="ghost"
+              onPress={() => void openInBantApp()}
+            />
+            <Text style={[styles.appHint, { color: theme.colors.secondary }]}>
+              Choose how you want to join. BANT will not open or join automatically.
+            </Text>
+          </View>
+        ) : null}
+
         {unavailable ? (
           <Text style={[styles.status, { color: theme.colors.danger }]}>
             {invalid ? "This invite is invalid." : expired ? "This invite has expired." : "This invite is no longer available."}
           </Text>
         ) : authenticated ? (
           <Text style={[styles.status, { color: theme.colors.mint }]}>
-            {joining ? "Joining you to the room..." : "Your BANT session is active. Joining room..."}
+            {joining ? "Joining you to the room..." : "Your BANT session is ready. Choose how you want to continue."}
           </Text>
         ) : (
           <View style={styles.actions}>
@@ -137,5 +195,7 @@ const styles = StyleSheet.create({
   meta: { fontFamily: "PlusJakartaSans_700Bold", fontSize: 12, textAlign: "center" },
   body: { fontFamily: "PlusJakartaSans_500Medium", fontSize: 14, lineHeight: 21, textAlign: "center" },
   status: { fontFamily: "PlusJakartaSans_600SemiBold", fontSize: 13, lineHeight: 19, textAlign: "center" },
-  actions: { width: "100%", gap: 10, marginTop: 4 }
+  actions: { width: "100%", gap: 10, marginTop: 4 },
+  appActions: { width: "100%", gap: 8, marginTop: 4 },
+  appHint: { fontFamily: "PlusJakartaSans_500Medium", fontSize: 12, lineHeight: 17, textAlign: "center" }
 });

@@ -12,6 +12,81 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
 Write-Host "Creating/verifying the Android platform shell..."
 flutter create --platforms=android --org com.bant.app --project-name bant_mobile .
 
+
+$settingsGradle = "android/settings.gradle.kts"
+if (Test-Path $settingsGradle) {
+  $settingsText = Get-Content $settingsGradle -Raw
+  if ($settingsText -notmatch 'com.google.gms.google-services') {
+    $settingsText = $settingsText -replace 'plugins \{', @'
+plugins {
+    id("com.google.gms.google-services") version "4.5.0" apply false
+'@
+    Set-Content -Path $settingsGradle -Value $settingsText -Encoding UTF8
+  }
+}
+
+$appGradle = "android/app/build.gradle.kts"
+if (Test-Path $appGradle) {
+  $appText = Get-Content $appGradle -Raw
+
+  if ($appText -notmatch 'id\("com.google.gms.google-services"\)') {
+    $appText = $appText -replace 'plugins \{', @'
+plugins {
+    id("com.google.gms.google-services")
+'@
+  }
+
+  if ($appText -notmatch 'isCoreLibraryDesugaringEnabled\s*=\s*true') {
+    if ($appText -match 'compileOptions\s*\{') {
+      $appText = $appText -replace 'compileOptions\s*\{', @'
+compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+'@
+    } else {
+      $appText = $appText -replace 'android \{', @'
+android {
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+'@
+    }
+  }
+
+  if ($appText -notmatch 'desugar_jdk_libs') {
+    if ($appText -match 'dependencies\s*\{') {
+      $appText = $appText -replace 'dependencies\s*\{', @'
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+'@
+    } else {
+      $appText += @'
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+'@
+    }
+  }
+
+  Set-Content -Path $appGradle -Value $appText -Encoding UTF8
+}
+
+
+# Install the canonical BANT launcher / notification icon.
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$webAppIcon = Join-Path $repoRoot "assets\brand\bant-app-icon.png"
+$androidDrawableDir = "android/app/src/main/res/drawable-nodpi"
+$androidAppIcon = Join-Path $androidDrawableDir "bant_app_icon.png"
+New-Item -ItemType Directory -Force -Path $androidDrawableDir | Out-Null
+if (Test-Path $webAppIcon) {
+  Copy-Item $webAppIcon $androidAppIcon -Force
+  Write-Host "Installed canonical BANT app icon."
+} else {
+  Write-Warning "BANT app icon was not found at $webAppIcon"
+}
+
 $manifest = "android/app/src/main/AndroidManifest.xml"
 if (-not (Test-Path $manifest)) {
   throw "AndroidManifest.xml was not generated."
@@ -19,12 +94,43 @@ if (-not (Test-Path $manifest)) {
 
 $xml = Get-Content $manifest -Raw
 
+# Final MVP app identity: display as BANT, never bant_mobile / bant_mobile_app.
+$xml = [regex]::Replace(
+  $xml,
+  'android:label="[^"]*"',
+  'android:label="BANT"',
+  1
+)
+if ($xml -match 'android:icon="[^"]*"') {
+  $xml = [regex]::Replace(
+    $xml,
+    'android:icon="[^"]*"',
+    'android:icon="@drawable/bant_app_icon"',
+    1
+  )
+} else {
+  $xml = $xml -replace '<application', '<application android:icon="@drawable/bant_app_icon"'
+}
+
+if ($xml -notmatch 'com.google.firebase.messaging.default_notification_icon') {
+  $firebaseIconMeta = @'
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/bant_app_icon" />
+'@
+  $xml = $xml -replace '</application>', ($firebaseIconMeta + '    </application>')
+}
+
 $requiredPermissions = @(
   '<uses-permission android:name="android.permission.INTERNET"/>',
   '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>',
   '<uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>',
   '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>',
   '<uses-permission android:name="android.permission.RECORD_AUDIO"/>',
+  '<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>',
+  '<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>',
+  '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>',
+  '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>',
   '<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>',
   '<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>',
   '<uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>'
@@ -80,6 +186,18 @@ if ($xml -notmatch 'flutter_deeplinking_enabled') {
 '@
 }
 
+
+if ($xml -notmatch 'BackgroundAudioService') {
+  $backgroundService = @'
+        <service
+            android:name=".BackgroundAudioService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaPlayback" />
+'@
+  $xml = $xml -replace '</application>', ($backgroundService + '    </application>')
+}
+
 Set-Content -Path $manifest -Value $xml -Encoding UTF8
 
 $mainActivity = Get-ChildItem -Path "android/app/src/main/kotlin" -Filter "MainActivity.kt" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -94,6 +212,7 @@ if ($mainActivity) {
 $packageLine
 
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -116,11 +235,95 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bant/background_audio")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val microphone = call.argument<Boolean>("microphone") ?: false
+                        val serviceIntent = Intent(this, BackgroundAudioService::class.java).apply {
+                            putExtra("microphone", microphone)
+                        }
+                        ContextCompat.startForegroundService(this, serviceIntent)
+                        result.success(null)
+                    }
+                    "stop" -> {
+                        stopService(Intent(this, BackgroundAudioService::class.java))
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 }
 "@
 
   Set-Content -Path $mainActivity.FullName -Value $mainSource -Encoding UTF8
+
+  $servicePath = Join-Path $mainActivity.Directory.FullName "BackgroundAudioService.kt"
+  $serviceSource = @"
+$packageLine
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+
+class BackgroundAudioService : Service() {
+    companion object {
+        private const val CHANNEL_ID = "bant_live_audio"
+        private const val NOTIFICATION_ID = 2401
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "BANT live audio",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Keeps BANT room audio active while you use other apps."
+            }
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val microphone = intent?.getBooleanExtra("microphone", false) == true
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(com.bant.app.bant_mobile.R.drawable.bant_app_icon)
+            .setContentTitle("BANT room is live")
+            .setContentText("Your room audio stays connected in the background.")
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val type = if (microphone) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            }
+            startForeground(NOTIFICATION_ID, notification, type)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
+        return START_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}
+"@
+  Set-Content -Path $servicePath -Value $serviceSource -Encoding UTF8
 }
 
 

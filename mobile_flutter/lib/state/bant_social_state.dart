@@ -195,7 +195,7 @@ class BantSocialState extends ChangeNotifier {
       await load();
     } catch (e) {
       error = e.toString().replaceFirst('Exception: ', '');
-      notifyListeners();
+      await load();
     }
   }
 
@@ -208,7 +208,7 @@ class BantSocialState extends ChangeNotifier {
       await load();
     } catch (e) {
       error = e.toString().replaceFirst('Exception: ', '');
-      notifyListeners();
+      await load();
     }
   }
 
